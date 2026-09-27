@@ -1,0 +1,101 @@
+PS C:\Users\sepp5\Git\csubgraph\build> .\subgraph-cli.exe
+{"graph_a":[[0,1],[1,0]],"graph_b":[[0,1],[1,0]]}
+{"error":null,"result":"IDENTICAL","result_code":3}
+PS C:\Users\sepp5\Git\csubgraph\build> $json = '{"graph_a":[[0,1,1,0,0],[1,0,1,1,0],[1,1,0,1,1],[0,1,1,0,1],[0,0,1,1,0]],"graph_b":[[0,1,1,0,0],[1,0,1,1,0],[1,1,0,1,1],[0,1,1,0,1],[0,0,1,1,0]]}'
+PS C:\Users\sepp5\Git\csubgraph\build> $json | .\subgraph-cli.exe
+{"error":null,"result":"IDENTICAL","result_code":3}
+PS C:\Users\sepp5\Git\csubgraph\build> $json = '{"graph_a":[[0,1,1,0,0],[1,0,1,1,0],[1,1,0,1,1],[0,1,1,0,1],[0,0,1,1,0]],"graph_b":[[0,1,1],[1,0,1],[1,1,0]]}'
+PS C:\Users\sepp5\Git\csubgraph\build> $json | .\subgraph-cli.exe
+{"error":null,"result":"KEEP_BOTH","result_code":2}
+PS C:\Users\sepp5\Git\csubgraph\build> $json = '{"graph_a":[[0,1,0,0],[1,0,1,0],[0,1,0,1],[0,0,1,0]],"graph_b":[[0,0,1],[0,0,0],[1,0,0]]}'
+PS C:\Users\sepp5\Git\csubgraph\build>  $json | .\subgraph-cli.exe
+{"error":null,"result":"KEEP_BOTH","result_code":2}
+PS C:\Users\sepp5\Git\csubgraph\build> $json = @{
+>>     graph_a = @(
+>>         @(0,1,1,0,1,0,0,0,0,1),
+>>         @(1,0,1,1,0,1,0,0,0,0),
+>>         @(1,1,0,1,0,0,1,0,0,0),
+>>         @(0,1,1,0,1,1,0,1,0,0),
+>>         @(1,0,0,1,0,1,1,0,1,0),
+>>         @(0,1,0,1,1,0,1,1,0,1),
+>>         @(0,0,1,0,1,1,0,1,1,0),
+>>         @(0,0,0,1,0,1,1,0,1,1),
+>>         @(0,0,0,0,1,0,1,1,0,1),
+>>         @(1,0,0,0,0,1,0,1,1,0)
+>>     )
+>>     graph_b = @(
+>>         @(0,1,0,1),
+>>         @(1,0,1,1),
+>>         @(0,1,0,1),
+>>         @(1,1,1,0)
+>>     )
+>> } | ConvertTo-Json -Compress
+PS C:\Users\sepp5\Git\csubgraph\build> $json | .\subgraph-cli.exe
+{"error":null,"result":"KEEP_BOTH","result_code":2}
+PS C:\Users\sepp5\Git\csubgraph\build> $tests = @(
+>>     # Test 1: Identisch
+>>     '{"graph_a":[[0,1],[1,0]],"graph_b":[[0,1],[1,0]]}',
+>>
+>>     # Test 2: Identisch (größer)
+>>     '{"graph_a":[[0,1,1],[1,0,1],[1,1,0]],"graph_b":[[0,1,1],[1,0,1],[1,1,0]]}',
+>>
+>>     # Test 3: Subgraph
+>>     '{"graph_a":[[0,1,1,0],[1,0,1,1],[1,1,0,1],[0,1,1,0]],"graph_b":[[0,1],[1,0]]}',
+>>
+>>     # Test 4: Unterschiedlich
+>>     '{"graph_a":[[0,1,0],[1,0,1],[0,1,0]],"graph_b":[[0,0,1],[0,0,1],[1,1,0]]}'
+>> )
+PS C:\Users\sepp5\Git\csubgraph\build>
+PS C:\Users\sepp5\Git\csubgraph\build> foreach ($i in 0..$($tests.Length-1)) {
+>>     Write-Host "Test $($i+1):" -ForegroundColor Green
+>>     $tests[$i] | .\subgraph-cli.exe
+>>     Write-Host ""
+>> }
+Test 1:
+{"error":null,"result":"IDENTICAL","result_code":3}
+
+Test 2:
+{"error":null,"result":"IDENTICAL","result_code":3}
+
+Test 3:
+{"error":null,"result":"KEEP_BOTH","result_code":2}
+
+Test 4:
+{"error":null,"result":"KEEP_BOTH","result_code":2}
+
+PS C:\Users\sepp5\Git\csubgraph\build> function New-RandomGraph($size) {
+>>     $matrix = @()
+>>     for ($i = 0; $i -lt $size; $i++) {
+>>         $row = @()
+>>         for ($j = 0; $j -lt $size; $j++) {
+>>             if ($i -eq $j) {
+>>                 $row += 0
+>>             } else {
+>>                 $row += (Get-Random -Minimum 0 -Maximum 2)
+>>             }
+>>         }
+>>         $matrix += ,@($row)
+>>     }
+>>     return $matrix
+>> }
+PS C:\Users\sepp5\Git\csubgraph\build>
+PS C:\Users\sepp5\Git\csubgraph\build> # Generiere Graphen
+PS C:\Users\sepp5\Git\csubgraph\build> $graphA = New-RandomGraph 15
+PS C:\Users\sepp5\Git\csubgraph\build> $graphB = New-RandomGraph 8
+PS C:\Users\sepp5\Git\csubgraph\build>
+PS C:\Users\sepp5\Git\csubgraph\build> # Konvertiere zu JSON
+PS C:\Users\sepp5\Git\csubgraph\build> $json = @{
+>>     graph_a = $graphA
+>>     graph_b = $graphB
+>> } | ConvertTo-Json -Compress
+PS C:\Users\sepp5\Git\csubgraph\build>
+PS C:\Users\sepp5\Git\csubgraph\build> # Messe Zeit
+PS C:\Users\sepp5\Git\csubgraph\build> $start = Get-Date
+PS C:\Users\sepp5\Git\csubgraph\build> $json | .\subgraph-cli.exe | Tee-Object -Variable result | Out-Null
+PS C:\Users\sepp5\Git\csubgraph\build> $duration = (Get-Date) - $start
+PS C:\Users\sepp5\Git\csubgraph\build>
+PS C:\Users\sepp5\Git\csubgraph\build> Write-Host "Dauer: $($duration.TotalMilliseconds) ms"
+Dauer: 50.4755 ms
+PS C:\Users\sepp5\Git\csubgraph\build> Write-Host "Ergebnis: $result"
+Ergebnis: {"error":null,"result":"KEEP_BOTH","result_code":2}
+PS C:\Users\sepp5\Git\csubgraph\build>
