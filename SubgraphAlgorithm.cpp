@@ -134,6 +134,10 @@ std::string SubgraphAlgorithm::resultToString(Result result) {
             return "KEEP_BOTH (Keine Subgraph-Beziehung)";
         case Result::IDENTICAL:
             return "IDENTICAL (Graphen sind identisch)";
+        case Result::EQUAL_KEEP_A:
+            return "EQUAL_KEEP_A (Wechselseitig enthalten; behalte A)";
+        case Result::EQUAL_KEEP_B:
+            return "EQUAL_KEEP_B (Wechselseitig enthalten; behalte B)";
         default:
             return "UNKNOWN";
     }
@@ -201,8 +205,19 @@ SubgraphAlgorithm::Result SubgraphAlgorithm::compareGraphs(
     } else if (isSubgraphBinA && !isSubgraphAinB) {
         return Result::KEEP_A;  // A hat mehr Informationen
     } else if (isSubgraphAinB && isSubgraphBinA) {
-        // Beide sind Subgraphen voneinander → wähle nach Größe
-        if (nA >= nB) {
+        // Bei gleich großen, wechselseitig enthaltenen Graphen entscheidet die
+        // Kantenzahl; bei unterschiedlicher Größe bleibt die größere Struktur erhalten.
+        if (nA == nB) {
+            size_t edgesA = 0;
+            size_t edgesB = 0;
+            for (const auto& row : graphA) {
+                edgesA += static_cast<size_t>(std::count(row.begin(), row.end(), 1));
+            }
+            for (const auto& row : graphB) {
+                edgesB += static_cast<size_t>(std::count(row.begin(), row.end(), 1));
+            }
+            return edgesA >= edgesB ? Result::EQUAL_KEEP_A : Result::EQUAL_KEEP_B;
+        } else if (nA > nB) {
             return Result::KEEP_A;
         } else {
             return Result::KEEP_B;

@@ -24,7 +24,9 @@ public:
         KEEP_A,         ///< Graph A ist Subgraph von B oder identisch → behalte A
         KEEP_B,         ///< Graph B ist Subgraph von A oder identisch → behalte B
         KEEP_BOTH,      ///< Keine Subgraph-Beziehung → behalte beide
-        IDENTICAL       ///< Graphen sind identisch → beide gleichwertig
+        IDENTICAL,      ///< Graphen sind identisch → beide gleichwertig
+        EQUAL_KEEP_A,   ///< Wechselseitig enthalten; behalte A
+        EQUAL_KEEP_B    ///< Wechselseitig enthalten; behalte B
     };
 
     /**

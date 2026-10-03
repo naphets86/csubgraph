@@ -113,6 +113,8 @@ Vergleicht zwei Graphen und bestimmt Subgraph-Beziehung.
 - `KEEP_B` - Graph B ist Subgraph von A oder hat gleiche Struktur
 - `KEEP_BOTH` - Keine Subgraph-Beziehung
 - `IDENTICAL` - Graphen sind identisch
+- `EQUAL_KEEP_A` - Graphen sind wechselseitig enthalten; behalte A
+- `EQUAL_KEEP_B` - Graphen sind wechselseitig enthalten; behalte B
 
 **Tests:**
 - Identische Graphen
@@ -195,7 +197,7 @@ Der Algorithmus ist basiert auf:
 - **Rotations-Basis**: Zyklische Ordnung-Erhaltung
 - **Subgraph-Kriterium**: LCS ≥ 2
 
-Siehe `subgraph.tex` in meinem Repository https://github.com/hjstephan86/subgraph für die vollständige formale Herleitung.
+Siehe meine wissenschaftliche Arbeit `subgraph.tex` in meinem Repository https://github.com/naphets86/subgraph unter science/ für die vollständige formale Herleitung.
 
 ## Erweiterungsmöglichkeiten
 

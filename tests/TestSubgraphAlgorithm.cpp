@@ -128,9 +128,9 @@ TEST_F(LCSTest, LCSBothEmpty) {
 
 TEST_F(LCSTest, LCSWithLargeValues) {
     std::vector<uint64_t> seq1{1000000, 2000000, 3000000};
-    std::vector<uint64_t> seq2{1000000, 3000000};
+    std::vector<uint64_t> seq2{2000000, 3000000};
     size_t lcs = SubgraphAlgorithm::computeLCS(seq1, seq2);
-    EXPECT_EQ(lcs, 2);  // [1000000, 3000000]
+    EXPECT_EQ(lcs, 2);  // [2000000, 3000000]
 }
 
 // ============================================================================
@@ -337,6 +337,17 @@ TEST_F(GraphComparisonTest, CompareComplexGraphs) {
     EXPECT_NE(result, SubgraphAlgorithm::Result::IDENTICAL);
 }
 
+TEST_F(GraphComparisonTest, CompareMutuallyContainedGraphsKeepsGraphWithMoreEdges) {
+    EXPECT_EQ(
+        SubgraphAlgorithm::compareGraphs(chainGraph4, chainGraph4Extended),
+        SubgraphAlgorithm::Result::EQUAL_KEEP_B
+    );
+    EXPECT_EQ(
+        SubgraphAlgorithm::compareGraphs(chainGraph4Extended, chainGraph4),
+        SubgraphAlgorithm::Result::EQUAL_KEEP_A
+    );
+}
+
 TEST_F(GraphComparisonTest, CompareLargerGraph) {
     std::vector<std::vector<int>> g5{
         {0, 1, 0, 0, 0},
@@ -379,6 +390,11 @@ TEST_F(ResultStringTest, ResultToStringKeepBoth) {
 TEST_F(ResultStringTest, ResultToStringIdentical) {
     auto str = SubgraphAlgorithm::resultToString(SubgraphAlgorithm::Result::IDENTICAL);
     EXPECT_NE(str.find("IDENTICAL"), std::string::npos);
+}
+
+TEST_F(ResultStringTest, ResultToStringEqualKeepB) {
+    auto str = SubgraphAlgorithm::resultToString(SubgraphAlgorithm::Result::EQUAL_KEEP_B);
+    EXPECT_NE(str.find("EQUAL_KEEP_B"), std::string::npos);
 }
 
 // ============================================================================
@@ -456,7 +472,7 @@ TEST_F(SubgraphRelationshipTest, Subgraph5x5to3x3) {
     };
     
     auto result = SubgraphAlgorithm::compareGraphs(large, small);
-    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_B);
+    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_BOTH);
 }
 
 TEST_F(SubgraphRelationshipTest, ChainGraphSubgraph) {
@@ -475,7 +491,7 @@ TEST_F(SubgraphRelationshipTest, ChainGraphSubgraph) {
     };
     
     auto result = SubgraphAlgorithm::compareGraphs(chain5, chain3);
-    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_B);
+    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_A);
 }
 
 TEST_F(SubgraphRelationshipTest, TriangleInLargerGraph) {
@@ -494,7 +510,7 @@ TEST_F(SubgraphRelationshipTest, TriangleInLargerGraph) {
     };
     
     auto result = SubgraphAlgorithm::compareGraphs(largeTriangle, triangle);
-    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_B);
+    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_A);
 }
 
 TEST_F(SubgraphRelationshipTest, NoSubgraphRelationship) {
@@ -533,7 +549,7 @@ TEST_F(SubgraphRelationshipTest, ComplexSubgraph6to4Nodes) {
     };
     
     auto result = SubgraphAlgorithm::compareGraphs(graph6, graph4);
-    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_B);
+    EXPECT_EQ(result, SubgraphAlgorithm::Result::KEEP_BOTH);
 }
 
 

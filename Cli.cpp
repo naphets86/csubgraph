@@ -18,8 +18,8 @@ using json = nlohmann::json;
  * 
  * Schreibt JSON auf stdout:
  * {
- *   "result": "KEEP_A|KEEP_B|KEEP_BOTH|IDENTICAL",
- *   "result_code": 0|1|2|3,
+ *   "result": "KEEP_A|KEEP_B|KEEP_BOTH|IDENTICAL|EQUAL_KEEP_A|EQUAL_KEEP_B",
+ *   "result_code": 0|1|2|3|4|5,
  *   "error": null | "error message"
  * }
  */
@@ -68,6 +68,14 @@ int main() {
             case SubgraphAlgorithm::Result::IDENTICAL:
                 resultStr = "IDENTICAL";
                 resultCode = 3;
+                break;
+            case SubgraphAlgorithm::Result::EQUAL_KEEP_A:
+                resultStr = "EQUAL_KEEP_A";
+                resultCode = 4;
+                break;
+            case SubgraphAlgorithm::Result::EQUAL_KEEP_B:
+                resultStr = "EQUAL_KEEP_B";
+                resultCode = 5;
                 break;
             default:
                 resultStr = "UNKNOWN";
