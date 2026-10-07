@@ -4,7 +4,6 @@ C++17-Implementierung des Subgraph-Algorithmus von Stephan Epp (2026). Die Bibli
 
 ## Inhalt
 
-- [Projektstruktur](#projektstruktur)
 - [Voraussetzungen](#voraussetzungen)
 - [Build](#build)
 - [Tests](#tests)
@@ -16,22 +15,6 @@ C++17-Implementierung des Subgraph-Algorithmus von Stephan Epp (2026). Die Bibli
 - [Einschränkungen](#einschränkungen)
 - [Wissenschaftlicher Hintergrund](#wissenschaftlicher-hintergrund)
 - [Erwerb](#erwerb)
-
-## Projektstruktur
-
-```
-.
-├── SubgraphAlgorithm.h              Klassendeklaration mit Dokumentationskommentaren
-├── SubgraphAlgorithm.cpp            Implementierung des Algorithmus
-├── Cli.cpp                          Kommandozeilenwerkzeug (JSON über stdin/stdout)
-├── tests/
-│   └── TestSubgraphAlgorithm.cpp    Unit-Tests (Google Test, 50 Testfälle)
-├── doc/
-│   └── tests.txt                    Protokoll eines Testlaufs
-├── CMakeLists.txt                   Build-Konfiguration
-├── LICENSE                          Lizenzbedingungen
-└── README.md
-```
 
 ## Voraussetzungen
 
