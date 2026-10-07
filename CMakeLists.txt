@@ -16,6 +16,8 @@ endif()
 add_library(subgraphlib
     SubgraphAlgorithm.cpp
     SubgraphAlgorithm.h
+    MultiOmics.cpp
+    MultiOmics.h
 )
 
 target_include_directories(subgraphlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -41,7 +43,10 @@ add_executable(subgraph-cli Cli.cpp)
 target_link_libraries(subgraph-cli PRIVATE subgraphlib nlohmann_json::nlohmann_json)
 
 # Test-Executable
-add_executable(subgraph-tests tests/TestSubgraphAlgorithm.cpp)
+add_executable(subgraph-tests
+    tests/TestSubgraphAlgorithm.cpp
+    tests/TestMultiOmics.cpp
+)
 target_link_libraries(subgraph-tests PRIVATE subgraphlib gtest gtest_main)
 
 # Code Coverage aktivieren

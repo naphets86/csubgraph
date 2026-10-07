@@ -31,7 +31,7 @@ Die folgenden Befehle sind plattformunabhängig. Unter Windows mit MinGW muss da
 ```
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
 
@@ -73,7 +73,7 @@ ctest --output-on-failure
 
 Unter Windows müssen die Laufzeitbibliotheken von MinGW (`libgcc*.dll`, `libstdc++*.dll`, `libwinpthread*.dll`) auffindbar sein, in der Regel durch Aufnahme von `<Pfad zu mingw64>\bin` in den `PATH`.
 
-Die Testsuite umfasst 50 Testfälle in neun Testgruppen:
+Die Testsuite umfasst 137 Testfälle in 22 Testgruppen. Die ersten neun Gruppen (50 Testfälle, `tests/TestSubgraphAlgorithm.cpp`) prüfen `SubgraphAlgorithm`:
 
 | Testgruppe                 | Anzahl | Gegenstand                                                   |
 |----------------------------|-------:|--------------------------------------------------------------|
@@ -86,6 +86,26 @@ Die Testsuite umfasst 50 Testfälle in neun Testgruppen:
 | `ResultStringTest`         | 5      | Textdarstellung der Ergebniswerte                            |
 | `EdgeCasesTest`            | 5      | Einzelknoten, unzusammenhängende und vollständige Graphen, lange Ketten |
 | `SubgraphRelationshipTest` | 5      | Subgraph-Beziehungen zwischen Graphen unterschiedlicher Größe |
+
+Die übrigen dreizehn Gruppen (87 Testfälle, `tests/TestMultiOmics.cpp`) prüfen `MultiOmics` und werden mit derselben Programmdatei `subgraph-tests` ausgeführt:
+
+| Testgruppe                      | Anzahl | Gegenstand                                                   |
+|---------------------------------|-------:|--------------------------------------------------------------|
+| `LayerStackValidationTest`      | 12     | Gültige und ungültige Schichtstapel, Grenze bei 63 und 64 Knoten |
+| `IntegrationTest`               | 12     | Vereinigung, Schnitt, k-aus-L-Konsens, Fehlerfälle, algebraische Gesetze (zufällig, fester Seed) |
+| `ProjectionTest`                | 7      | Schichtauswahl, Reihenfolge, Duplikate, Index- und Stapelfehler |
+| `TotalEdgesTest`                | 4      | Gesamtkantenzahl, Schleifen, Zufallsprüfung, Fehlerfälle     |
+| `LayerRowComponentsTest`        | 6      | Zeilenkomponenten von Hand gerechnet, Abgleich mit `SubgraphAlgorithm`, 63-Bit-Grenze |
+| `ContainsTest`                  | 12     | Paar im Host, zyklischer Umlauf, lineare Anfrage, Reihenfolge, Einzelknoten, 63 Knoten, Ausnahmen |
+| `CoherenceTest`                 | 6      | Kohärenter gegen unabhängigen Modus, Gegenbeispiel, Implikation auf Zufallsstapeln |
+| `StrategyEquivalenceTest`       | 2      | `BIGRAM` gegen `DYNAMIC` auf Zufallsstapeln bis 63 Knoten    |
+| `SingleLayerConsistencyTest`    | 4      | Übereinstimmung mit `SubgraphAlgorithm::compareGraphs` (alle Matrizen bis 2 Knoten, Stichproben bis 63 Knoten) |
+| `CompareLayeredTest`            | 11     | Alle sechs Ergebniswerte, Kantenzahl-Entscheidung, Spiegelung, Ausnahmen |
+| `InvarianceTest`                | 4      | Schichtpermutation, doppelte Schichten, Projektionen, Integration |
+| `MultiOmicsEdgeCasesTest`       | 5      | 63 Knoten, 64 Knoten, 2-Knoten-Graphen, Nullen und Einsen, viele Schichten |
+| `ResultTextCompletionTest`      | 2      | Textdarstellung für `EQUAL_KEEP_A` und unbekannte Werte      |
+
+Die Zufallstests verwenden feste Seeds und sind damit reproduzierbar. Mit GCC ergibt `gcov` für `MultiOmics.cpp` alle Zeilen ausgeführt; nicht ausgeführt bleibt nur der durch die Struktur der Fallunterscheidung unerreichbare Zweig `aInB && !bInA` in der Prüfung auf wechselseitige Enthaltung sowie Ausnahmepfade, die `gcov` als zusätzliche Verzweigungen zählt.
 
 Das Protokoll eines erfolgreichen Durchlaufs liegt unter `doc/tests.txt` (Kodierung UTF-16).
 
