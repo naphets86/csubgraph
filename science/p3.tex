@@ -1,0 +1,361 @@
+
+% =====================================================================
+\part{Prüfung}
+% =====================================================================
+
+\chapter{Kompatibilitätsprüfung}
+\label{chap:pruefung}
+
+Die Prüfung beantwortet eine praktische Frage: Funktionieren die Verbindungen zwischen den Fassungen und Projekten, wenn man sie aus den aktuellen Quellen baut? Sie macht keine Aussage über Laufzeit in anderen Umgebungen.
+
+\section{Aufbau}
+
+Alle Programme wurden unter Linux mit GCC~13 aus den Quellen gebaut, ohne CMake (kein Netzzugriff auf die \texttt{FetchContent}-Quellen): Adapter und Bibliothek mit \texttt{g++ -std=c++17 -O2} aus \texttt{SubgraphAlgorithm.cpp}, \texttt{MultiOmics.cpp}, \texttt{ExactSubgraph.cpp} und \texttt{SolverCli.cpp}, der Solver aus \texttt{Cnf.cpp}, \texttt{Reduction.cpp}, \texttt{SubgraphSATSolver.cpp} und \texttt{main.cpp} (Abschnitt~\ref{sec:anleitung_ohne_cmake}). Die Python-Referenz und die Neuimplementierungen von Gen-DB wurden direkt importiert. Die Zufallsinstanzen wurden mit festen Seeds erzeugt; die Erzeugungsskripte sind nicht Teil dieser Arbeit.
+
+Die Prüfläufe 1 bis 8 in Tabelle~\ref{tab:pruefung} stammen aus einer vorangegangenen Prüfung mit derselben Methode. Die Zeilen mit Stern wurden bei der Erstellung dieser Fassung neu ausgeführt.
+
+\section{Ergebnisse}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}cL{5.0cm}L{2.8cm}Y@{}}
+		\toprule
+		Nr. & Prüfgegenstand & Umfang & Ergebnis \\
+		\midrule
+		1 & Python-Referenz gegen C++ (\W{1}) & $20\,000$ Zufallspaare & $127$ Abweichungen, alle bei zwei identischen $1{\times}1$-Graphen (Python \texttt{keep\_both}, C++ \texttt{IDENTICAL}); sonst keine \\
+		2 & C++-\texttt{MultiOmics} gegen \texttt{multiomics\_python} (\W{2} gegen \W{9}) & $12\,000$ Vergleiche & keine Abweichung \\
+		3 & \texttt{ExactSubgraph} gegen Brute-Force (\W{3}) & $20\,000$ Paare & keine Abweichung, keine ungültige Einbettung \\
+		4 & Solver, Modus \texttt{exact} (\W{14}) & $300$ Zufalls-CNFs & keine falsche Antwort, keine ungültige Belegung \\
+		5 & Solver, Modus \texttt{heuristic} (\W{15}) & dieselben $300$ Formeln & $130$ falsche Antworten (erfüllbar als unerfüllbar), $5$ Fehlerstatus \\
+		6 & Aufrufkosten Adapter (Prozess) & Mittelwert & $3{,}41$\,ms \\
+		7 & Aufrufkosten In-Prozess & Mittelwert & $0{,}0185$\,ms (etwa $184$-fach geringer) \\
+		8 & Linken des Gen-DB-Wrappers unter Linux & ein Bauversuch & scheitert ohne \texttt{-fPIC}; mit \texttt{-fPIC} erfolgreich \\
+		9* & Paarcharakterisierung, Satz~\ref{satz:paar}, gegen Rotation und Tabelle & $200\,000$ Zufallspaare kurzer Folgen & keine Abweichung \\
+		10* & Beispiel aus Abschnitt~\ref{sec:solver_beispiel}: Solver und Adapter & ein Lauf je Modus & \texttt{exact}: $\{x_1{=}T,x_2{=}F,x_3{=}T\}$, Mapping $[0,3,4]$; \texttt{heuristic}: \texttt{false} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Prüfläufe und Ergebnisse. * = in dieser Fassung neu ausgeführt.}
+	\label{tab:pruefung}
+\end{table}
+
+Gen-DBs eigene Windows-Messdateien wurden nicht neu gemessen, aber gelesen: Python $1180{,}3$\,s gegen C++ $185{,}6$\,s bei $931\,899$ Kandidaten, also das $6{,}36$-Fache (Tabelle~\ref{tab:gendb_messung}).
+
+\section{Interpretation}
+
+Die Läufe 2 bis 4 bestätigen, dass die Neuimplementierungen und der exakte Test dem jeweiligen Original entsprechen. Lauf~1 zeigt, dass die Referenz in einem Randfall von der Portierung abweicht und die Portierung die richtige ist. Die Läufe 5 und 10 zeigen, dass der Signaturmodus nicht als Orakel taugt, und Lauf~8 zeigt einen Bauzwang, den nur ein Linux-Versuch findet. Die Aussagen gelten für die geprüften Instanzen und nicht für alle Eingaben; insbesondere beweist die Prüfung nichts über die Laufzeit des exakten Modus bei großen Formeln.
+
+\chapter{Befunde und Verbesserungen}
+\label{chap:befunde}
+
+Die folgende Liste fasst alle Befunde aus Quelltextlesung und Prüfung zusammen, geordnet nach Priorität.
+
+{\small
+\begin{longtable}{@{}L{1.0cm}L{5.3cm}L{4.5cm}L{3.9cm}@{}}
+	\caption{Befunde mit Verbesserungsvorschlägen. Priorität: H hoch, M mittel, N niedrig.}
+	\label{tab:befunde} \\
+	\toprule
+	Nr. & Befund & Auswirkung & Verbesserung \\
+	\midrule
+	\endfirsthead
+	\toprule
+	Nr. & Befund & Auswirkung & Verbesserung \\
+	\midrule
+	\endhead
+	B1 (H) & \texttt{CMakeLists.txt} von \texttt{csubgraph} setzt kein \texttt{-fPIC} & Linken des Gen-DB-Wrappers scheitert unter Linux (Lauf~8) & \texttt{set(CMAKE\_POSITION\_INDEPENDENT\_CODE ON)} \\[0.4em]
+	B2 (H) & Exit-Code $20$ des Solvers steht für \texttt{UNSAT}, \texttt{UNKNOWN} und Fehler & Frameworks, die nur den Code lesen, zählen einen Adapter-Zeitablauf als \texttt{UNSAT} & eigener Code für Fehler, Text weiter auswerten \\[0.4em]
+	B3 (H) & Solver-Zeitlimit wird nicht an den Adapter weitergereicht & zwei unabhängige Limits, Standard $60$\,s im Adapter & \texttt{setenv} vor \texttt{execl} \\[0.4em]
+	B4 (M) & \texttt{pyproject.toml} von Gen-DB hängt auf \texttt{@main} & Änderung am Zweig ändert Verhalten ungeprüft & feste Version (Tag oder Commit) \\[0.4em]
+	B5 (M) & Ergebniscodes an vier Stellen kodiert (\texttt{Cli.cpp}, zwei Wrapper, \texttt{csubgraph\_native.py}) & Änderung an einer Stelle bricht die anderen & gemeinsamer Header, Test auf Konsistenz \\[0.4em]
+	B6 (M) & \texttt{SubgraphAlgorithm} prüft die $63$-Knoten-Grenze nicht & Verschiebung um $\ge 64$ Bit ist undefiniert & Grenze in \texttt{calculateSignatures} prüfen, Ausnahme \\[0.4em]
+	B7 (M) & Referenz liefert für identische $1{\times}1$-Graphen \texttt{keep\_both} & Abweichung zu C++ in $127$ von $20\,000$ Fällen & Gleichheitsprüfung in Python ergänzen \\[0.4em]
+	B8 (M) & Solver erkennt Antworten über Textsuche mit fester Schreibweise & jede Abweichung (z.\,B.\ ohne Leerzeichen) ergibt \texttt{UNSAT} & JSON-Parser oder tolerantere Suche \\[0.4em]
+	B9 (M) & Modus \texttt{heuristic}: $130$ falsche Antworten, $5$ Fehlerstatus; Ursache der Fehler unbekannt & kein Orakel im Sinne von Def.~\ref{def:orakel} & Fehler untersuchen; Modus nur als Diagnose kennzeichnen \\[0.4em]
+	B10 (N) & Drei Konto-Namen in den Quellen: \texttt{naphez86} (\texttt{pyproject.toml} Gen-DB, Solver-TeX), \texttt{naphets86} (Gen-DB-Quellen, Solver-README), \texttt{hjstephan86} (Solver-, Subgraph-, csubgraph-README) & tote Verweise & ein Konto festlegen, Verweise angleichen \\[0.4em]
+	B11 (N) & Header des Solvers nennt „polynomielle Zeit“ & falsch für den exakten Modus & Kommentar korrigieren \\[0.4em]
+	B12 (N) & \texttt{CMakeLists.txt} des Solvers fordert \texttt{nlohmann/json}, nutzt es aber nicht & unnötiger Download & Anforderung entfernen \\[0.4em]
+	B13 (N) & Hilfsfunktion \texttt{computeLCS} berechnet einen längsten gemeinsamen \emph{Teilstring} & Missverständnis & umbenennen (\texttt{longest\allowbreak Common\allowbreak Substring}) \\[0.4em]
+	B14 (N) & Zeitlimit von \texttt{ExactSubgraph} deckt Vorverarbeitung nicht ab & Limit kann überschritten werden & \texttt{tick()} auch in Kern und Färbung \\
+	\bottomrule
+\end{longtable}
+}
+
+\section{Mängel der früheren Fassung dieser Arbeit}
+
+Die Neufassung behebt folgende Mängel der vorherigen: fehlendes Literaturverzeichnis (\texttt{\textbackslash cite} lief ins Leere), unaufgelöste Verweise (\texttt{sec:gendb\_native}, \texttt{sec:protokoll}, \texttt{sec:solver\_aufruf}, \texttt{sec:solver\_komplexitaet}), Zeichenfehler („Gräße“, „kännen“, „wärtlich“, „abgeläst“), die falsche Bezeichnung des Solvers (\texttt{SubgraphSATSolver} statt \texttt{subgraph-sat-solver} als Programmname), die Einordnung der Kapitel~5 bis~10 als Abschnitte von Kapitel~4, die fehlenden Beweise zur Belegungsextraktion und das fehlende durchgerechnete Beispiel (beides jetzt in Abschnitt~\ref{sec:solver_extraktion} und~\ref{sec:solver_beispiel}). Außerdem war die Aussage falsch, Gen-DB enthalte keine eigene Implementierung der Relation (Tabelle~\ref{tab:repos}).
+
+\chapter{Bau- und Aufrufanweisungen}
+\label{chap:anleitung}
+
+\section{Bibliothek und Programme mit CMake}
+
+\begin{lstlisting}[language=bash]
+cd csubgraph
+mkdir -p build && cd build
+cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..      # -fPIC, noetig fuer Gen-DB unter Linux
+cmake --build .
+\end{lstlisting}
+
+Es entstehen \texttt{libsubgraphlib.a}, \texttt{subgraph-cli}, \texttt{subgraph} und \texttt{subgraph-tests}. CMake lädt dabei \texttt{nlohmann/json} und GoogleTest nach (Netzzugriff nötig).
+
+\section{Ohne CMake}
+\label{sec:anleitung_ohne_cmake}
+
+Adapter und Solver lassen sich ohne CMake bauen, wie in Kapitel~\ref{chap:pruefung}:
+
+\begin{lstlisting}[language=bash]
+C=csubgraph; S=subgraph-sat-solver
+g++ -std=c++17 -O2 -I$C $C/SubgraphAlgorithm.cpp $C/MultiOmics.cpp \
+    $C/ExactSubgraph.cpp $C/SolverCli.cpp -o subgraph
+g++ -std=c++17 -O2 -I$S $S/Cnf.cpp $S/Reduction.cpp \
+    $S/SubgraphSATSolver.cpp $S/main.cpp -o solver
+\end{lstlisting}
+
+\section{Adapter und Solver aufrufen}
+
+\begin{lstlisting}[language=bash]
+export SUBGRAPH_MODE=exact          # Standard; "heuristic" nur zur Diagnose
+export SUBGRAPH_TIMEOUT_SEC=60
+./subgraph input.json output.json   # Adapter einzeln
+./solver --subgraph-binary ./subgraph f1.cnf   # Solver mit Adapter
+\end{lstlisting}
+
+Die Eingabedatei des Adapters enthält die zwei Graphen \texttt{G} und \texttt{H} mit den Schlüsseln \texttt{nodes} und \texttt{edges}. Die Ausgabe ist \texttt{\{"is\_subgraph": true/false\}} und bei \texttt{true} im exakten Modus zusätzlich \texttt{"mapping"}.
+
+\section{Gen-DB mit der Bibliothek}
+
+\begin{lstlisting}[language=bash]
+export CSUBGRAPH_LIB_PATH=/pfad/zu/csubgraph/build     # oder in die .env
+export CXX=g++                                          # Compiler fuer den Wrapper
+python src/experiment_search_backends.py                # Experiment Python gegen C++
+\end{lstlisting}
+
+Ohne die Variable läuft Gen-DB mit dem Python-Paket. Gen-DB wählt je Prozess einmal und gibt im Log eine Warnung aus, wenn die Bibliothek gesetzt, aber nicht nutzbar ist. Mit \texttt{get\_backend\_name()} lässt sich prüfen, welche Fassung läuft.
+
+% =====================================================================
+\part{Schluss}
+% =====================================================================
+
+\chapter{Zusammenfassung}
+\label{chap:zusammenfassung}
+
+Der Subgraph Algorithmus wurde in Python entwickelt und seither auf achtzehn Weisen wiederverwendet (Katalog, Kapitel~\ref{chap:katalog}). Diese Arbeit hat diese Wiederverwendungen geordnet, die tragenden Aussagen bewiesen oder geprüft und die Kette der Projekte von der Python-Referenz bis zu den Experimenten auf Schwachstellen untersucht. Dieses Kapitel fasst zusammen, was dabei herausgekommen ist; was daraus folgen sollte, steht im anschließenden Ausblick (Kapitel~\ref{chap:ausblick}).
+
+\section{Die Wiederverwendungen}
+
+Die achtzehn Wiederverwendungen \W{1} bis \W{18} lassen sich in sieben Formen einteilen. Sie unterscheiden sich darin, ob der \emph{Algorithmus} selbst, seine \emph{Relation}, die \emph{Bibliothek} oder nur die \emph{Infrastruktur} übernommen wird (Kapitel~\ref{chap:landschaft} und~\ref{chap:katalog}). Aufschlussreich ist, was \emph{nicht} wiederverwendet wird: Der exakte Teilgraphtest, den der Subgraph-SAT-Solver braucht, verwendet vom Signaturalgorithmus gar nichts (\W{3}, \W{14}); der Algorithmus ist dort ein austauschbares Orakel. Die Kette reicht von der Python-Referenz (Kapitel~\ref{chap:python_referenz}) über die C++-Portierung \texttt{csubgraph} mit ihren Erweiterungen \texttt{MultiOmics} und \texttt{ExactSubgraph} (Kapitel~\ref{chap:cpp_portierung} und~\ref{chap:omics_exact}) und deren Außenflächen (JSON-Programm, Datei-Adapter, C-Schnittstelle) bis zu den drei Anwendungen Gen-DB, Subgraph-SAT-Solver und Experimente-Framework.
+
+\section{Die vier inhaltlichen Ergebnisse}
+
+\begin{enumerate}
+	\item Die \emph{Paarcharakterisierung} (Satz~\ref{satz:paar}) zeigt, dass die Relation des Algorithmus ein Paarschnitt ist. Sie vereint \W{2}, \W{9}, \W{10} und \W{11} und führt zum invertierten Paarindex, der Vergleiche ganz vermeidet (Satz~\ref{satz:index}). In Gen-DB bringt der Index nach den eigenen Messdateien das rund $80$- bis $115$-Fache gegenüber Einzelvergleichen in Python, bei gleichen Trefferlisten.
+	\item Die \emph{Reduktionskette} des Subgraph-SAT-Solvers von CNF über 3-SAT und Clique auf Subgraph ist korrekt, und die Belegungsextraktion liefert aus jeder Einbettung eine erfüllende Belegung (Satz~\ref{satz:extraktion}). Ein durchgerechnetes Beispiel und ein echter Lauf bestätigen das an einer kleinen Formel.
+	\item Die \emph{Prüfung} (Kapitel~\ref{chap:pruefung}) findet in den geprüften Instanzen keine Abweichung zwischen Python-Referenz und C++-Fassung, mit einer erklärbaren Ausnahme bei identischen $1{\times}1$-Graphen. Der Signaturmodus des Solvers ist als Orakel ungeeignet ($130$ von $300$ Antworten falsch).
+	\item Die \emph{Kopplungsarten} haben klare Einsatzfelder (Kapitel~\ref{chap:vergleich}): Bibliothek im Prozess für Massenvergleiche (Gen-DB), Prozess mit Dateien für austauschbare Orakel (Solver), Übernahme der Idee, wo sie sich auf einen Index abbilden lässt.
+\end{enumerate}
+
+\section{Das Zusammenspiel der Sprachen: das Sequenzdiagramm}
+
+Wie die Bausteine bei einer einzigen Suche zusammenspielen, zeigt das UML-Sequenzdiagramm in Abschnitt~\ref{sec:sequenz}. Es folgt dem Use Case \emph{Subgraph-Suche} in Gen-DB von der Eingabe im Browser bis zur Anzeige des Ergebnisses und hat neun Lebenslinien in drei Sprach- und Prozessbereichen. Fünf Einsichten sind festzuhalten. Die Anfrage überquert drei Grenzen (Netz, Prozess, Sprache), und nur die Sprachgrenze Python$\to$C++ ist billig, weil sie innerhalb des Worker-Prozesses als Funktionsaufruf verläuft (rund $0{,}018$\,ms). Der Algorithmus ist austauschbar, die Suche nicht: Nur ein einziger Rahmen des Diagramms enthält Algorithmus-Code. Die Auswahl zwischen C++ und Python fällt einmal je Prozess, nicht je Vergleich. Fehler laufen als Werte, nicht als Ausnahmen. Und die Reihenfolge der Kandidaten bleibt erhalten. Die Messdateien erklären, warum der Gesamtgewinn der C++-Fassung ($6{,}36$) kleiner ist als der Gewinn je Einzelvergleich ($\approx37$): Der Rechenkern ist danach nicht mehr der Engpass, der serielle Rest der Suche macht $66{,}7\,\%$ der Zeit aus. Das ist eine Aussage über die Kopplung, nicht über den Algorithmus.
+
+\section{Das Laden der Bibliothek und das einheitliche Konzept}
+
+Gen-DB und \repo{subgraph-sat-solver-econ} laden ihre C/C++-Bibliothek auf grundverschiedene Weise (Kapitel~\ref{chap:laden}). Gen-DB baut den Wrapper beim ersten Gebrauch aus einem statischen Archiv mit dem Compiler, legt ihn unter einem Hash-Namen in einen Cache, lädt ihn über \texttt{ctypes} und fällt bei jedem Fehler mit einer Warnung auf Python zurück. Das Econ-Projekt lädt eine fertig mit CMake gebaute Bibliothek, prüft ihre ABI-Version, trägt unter Windows die \texttt{PATH}-Ordner ein und bricht ohne Rückfall mit einer Ausnahme ab. Beide Verfahren sind für ihren Zweck folgerichtig; der Unterschied liegt in der Fachaufgabe (Dienst gegen Experiment), nicht im Können. Beide enthalten aber viel Code, der mit der Fachaufgabe nichts zu tun hat: Dateinamen je Betriebssystem, Exportmakros, Suchpfade, Linker-Schalter, Anleitungstext. Der Befund B1 (fehlendes \texttt{-fPIC}) gehört in dieselbe Klasse.
+
+Daraus entwickelt die Arbeit das Konzept einer \emph{einheitlichen gemeinsamen Bibliothek} mit der Endung \texttt{.sl}, ausführlich nach dem Diskussionsentwurf. Seine Kernforderung lautet: Das Ladeverfahren muss durch Abstraktion und Standardisierung betriebssystemunabhängig werden. Festgelegt wird das \emph{Verhalten}, nicht der Mechanismus. Dazu gehören die Schichtenarchitektur mit dem Plattformadapter als einziger betriebssystemspezifischer Stelle, ein Ladeverfahren aus neun festen Schritten, eine feste Suchreihenfolge, die Programmierschnittstelle (\texttt{sl\_open}, \texttt{sl\_symbol}, \texttt{sl\_close}, \texttt{sl\_error}, \texttt{sl\_info}) mit einem einheitlichen Fehlermodell, Regeln für Lebenszyklus und Threads, ein standardisierter Symbolexport, ein Metadatenkopf und eine Konformitätssuite. Die Arbeit diskutiert Nutzen, Einwände (CPU-Architektur ist nicht gleich Bibliothek, Altbestand, Zuständigkeit, Angriffsfläche), drei Umsetzungsstufen, Sicherheit und Risiken und zeigt am Beispiel der beiden Projekte, welcher Plattformcode entfiele. Ein Beweis zeigt, dass aus den Schritten~4, 6 und~9 eine feste Reihenfolge von Initialisierung und Freigabe folgt. Der Entwurf ist \emph{nicht} umgesetzt; er ist ein Konzept mit Fahrplan und offenen Fragen.
+
+\section{Die Experimente}
+
+Das Experimente-Framework (Kapitel~\ref{chap:experimente}) startet den Subgraph-SAT-Solver als Prozess und misst Laufzeiten auf Boolean Circuits. Die Arbeit hat die zugehörige wissenschaftliche Arbeit des Frameworks ausgewertet; neu gemessen wurde nichts. Zwei Messreihen liegen vor.
+
+Die \emph{erste Reihe} ($288$ Läufe, vier Suites) zeigt über Instanzgrößen von $4$ bis $3\,512$ Gates keine Abhängigkeit der Laufzeit von der Größe ($\rho=0{,}024$). Das ist aber kein Ergebnis über den Algorithmus: Die Werte häufen sich bei $15{,}625$ und $31{,}25$\,ms (grobe Uhrauflösung), in keinem Lauf wurde ein Ergebnis erfasst, die Kodierung von NAND, NOR und XOR war fehlerhaft, und die Formeln waren unabhängig vom Circuit erfüllbar. Als Befund bleibt nur eine obere Schranke der Prozesslaufzeit.
+
+Die \emph{neue Version~2.0.0} behebt diese Mängel (korrigierte Kodierung, Ausgangsbedingung, Nanosekundenuhr, Basislinie, Warm-up, Median, Statusauswertung mit Vorrang der \texttt{Status:}-Zeile, neun unerfüllbare Miter-Instanzen, ein Python-Referenzsolver). Sie liegt als Zwischenstand mit $44$ von $46$ Instanzen vor. Der Subgraph-SAT-Solver löst alle erfüllbaren Instanzen bis $1\,193$ Gates; seine Laufzeit wächst deutlich (ISCAS'85: Exponent $2{,}08\pm0{,}07$ über der Literalzahl, von $515{,}75$\,ms bei c432 auf $20\,427{,}66$\,ms bei c2670; Target-AND-Random: Faktor $4{,}1$ zwischen $27$ und $54$ Gates). In allen $33$ gemeinsam entschiedenen Fällen stimmen beide Solver überein. Ab $10\,487$ Literalen endet der Solver mit \texttt{ERROR}, und von den neun unerfüllbaren Miter-Instanzen löst er nur die drei kleinsten. Die Grenzen sind ebenso klar: Der Exponent gilt für die ganze Pipeline, nicht für die Schranke $\Theta(n^3)$ des Algorithmus; der Referenzsolver ist kein Maßstab für MiniSat oder CaDiCaL; es liegen nur Mediane vor; die Ursache der Ausfälle ist ungeklärt; Modus und Version des Solvers sind nicht dokumentiert.
+
+\section{Prüfung und Befunde}
+
+Die Prüfung unter Linux (GCC~13) hat die Verträglichkeit der Fassungen untersucht und vierzehn Befunde mit Verbesserungsvorschlägen ergeben (Kapitel~\ref{chap:befunde}): drei hohe (B1 bis B3: fehlendes \texttt{-fPIC}, mehrdeutiger Exit-Code $20$, nicht weitergereichtes Zeitlimit), sechs mittlere und fünf niedrige. Zwei Befunde berühren die Experimente unmittelbar. B2 ist genau die Verwechslung, die die erste Messreihe in ihrer Auswertung nicht vermied und die die neue Version durch die Priorität der Textzeile umgeht. Und die Ursache der fünf Fehlerstatus im Modus \texttt{heuristic} (B9) bleibt wie die der \texttt{ERROR}-Läufe ab $10\,487$ Literalen offen.
+
+\section{Grenzen der Arbeit}
+
+\begin{itemize}
+	\item Der exakte Modus ist im ungünstigsten Fall exponentiell; die Schranke $O(n^3)$ gilt nur für den Signaturalgorithmus.
+	\item Die Gen-DB-Messungen stammen aus einer Windows-Umgebung und wurden nicht neu erhoben.
+	\item Der Quelltext des Experimente-Frameworks wurde nicht geprüft; alle Zahlen des Experimente-Kapitels stammen aus seiner eigenen Arbeit.
+	\item Die neue Messreihe ist ein Zwischenstand (ein Kern, $3{,}9$\,GiB, \texttt{-O2}); es fehlen Einzelläufe, Rückgabecodes und die beiden größten Skalierungsinstanzen.
+	\item Das Konzept des einheitlichen Ladeverhaltens ist ein Entwurf ohne Referenzimplementierung und ohne Messung seines Nutzens.
+	\item Die Ursache der Fehlerstatus im Modus \texttt{heuristic} ist ungeklärt.
+\end{itemize}
+
+\chapter{Ausblick}
+\label{chap:ausblick}
+
+Aus den Befunden, den Experimenten und dem Konzept des einheitlichen Ladeverhaltens ergeben sich viele weitere Schritte. Dieses Kapitel ordnet sie nach Arbeitsfeldern und gibt zu jedem das Ziel, den Ausgangspunkt in dieser Arbeit, die nötigen Arbeitsschritte, das Kriterium, an dem sich der Erfolg messen lässt, und, wo es eine gibt, die erwartbare Schwierigkeit. Abschnitt~\ref{sec:ausblick_reihenfolge} schlägt am Ende eine Reihenfolge vor. Vorhersagen über Messergebnisse sind als Erwartungen gekennzeichnet; belegt sind sie erst nach der Messung.
+
+\section{Sofort umsetzbar: die Befunde beheben}
+
+\subsection{Die drei hohen Befunde}
+
+\textbf{Ziel:} die gefährlichsten Verwechslungen beseitigen. \textbf{Ausgangspunkt:} B1 bis B3 (Tabelle~\ref{tab:befunde}). \textbf{Schritte:} (1) In der \texttt{CMakeLists.txt} von \texttt{csubgraph} \texttt{CMAKE\_POSITION\_INDEPENDENT\_CODE} setzen, damit der Gen-DB-Wrapper unter Linux linkt (B1). (2) Dem Solver einen eigenen Exit-Code für Fehler geben, sodass $20$ nur noch \texttt{UNSAT} bedeutet (B2); der Text bleibt maßgeblich, bis alle Aufrufer umgestellt sind. (3) Das Zeitlimit des Solvers vor dem Aufruf des Adapters in die Umgebung setzen, damit nicht zwei unabhängige Limits gelten (B3). \textbf{Erfolgskriterium:} Der Linux-Lauf der Prüfung (Lauf~8) gelingt ohne Handeingriff, und ein künstlich ausgelöster Zeitablauf wird vom Framework nicht mehr als \texttt{UNSAT} gezählt. Zusammen sind es wenige Zeilen.
+
+\subsection{Die mittleren und niedrigen Befunde}
+
+B4 bis B14 sind einzeln klein, aber nicht folgenlos. Die Gruppierung nach Ursache hilft bei der Reihenfolge.
+\begin{itemize}
+	\item \emph{Reproduzierbarkeit:} B4 (Abhängigkeit auf \texttt{@main} durch einen festen Tag oder Commit ersetzen) und B10 (drei Konto-Namen in den Quellen vereinheitlichen, damit Verweise nicht ins Leere laufen).
+	\item \emph{Gemeinsame Verträge:} B5 (die Ergebniscodes $0$ bis $5$ stehen an vier Stellen; ein gemeinsamer Header in \texttt{csubgraph} und ein Konsistenztest in Gen-DB beseitigen das Risiko) und B8 (die Textsuche im Solver durch einen JSON-Parser ersetzen).
+	\item \emph{Korrektheit an den Rändern:} B6 (Prüfung der $63$-Knoten-Grenze in \texttt{calculateSignatures} mit Ausnahme statt undefinierter Verschiebung), B7 (Gleichheitsprüfung in der Python-Referenz, damit sie bei identischen $1{\times}1$-Graphen wie C++ entscheidet) und B14 (\texttt{tick()} auch in Kern und Färbung von \texttt{ExactSubgraph}, damit das Zeitlimit die Vorverarbeitung deckt).
+	\item \emph{Hygiene:} B11 (Kommentar \glqq polynomielle Zeit\grqq{} im exakten Modus korrigieren), B12 (ungenutzte \texttt{nlohmann/json}-Anforderung entfernen) und B13 (\texttt{computeLCS} in \texttt{longestCommonSubstring} umbenennen).
+\end{itemize}
+Für B6 und B7 lohnt ein Regressionstest, der die Randfälle der Prüfung (Graphen mit $63$ und $64$ Knoten, identische $1{\times}1$-Graphen) dauerhaft in die Testsuite aufnimmt, sodass die Kompatibilitätsprüfung aus Kapitel~\ref{chap:pruefung} nicht jedes Mal von Hand wiederholt werden muss.
+
+\subsection{Der Modus \texttt{heuristic}}
+
+\textbf{Ziel:} entscheiden, ob der Signaturmodus Diagnosewerkzeug oder Orakel sein soll. \textbf{Ausgangspunkt:} B9, $130$ falsche Antworten von $300$ und fünf Fehlerstatus. \textbf{Schritte:} (1) Die fünf Fehlerstatus einzeln nachstellen und die Ursache klären (Grenze der Signaturbreite, Eingabeform, Zeitlimit?). (2) Die falschen Antworten nach Art einteilen: Der Signaturalgorithmus berechnet eine Relation, die für den Teilgraphtest notwendig, aber nicht hinreichend ist; erwartet werden deshalb falsch-positive Antworten, falsch-negative wären ein Fehler. (3) Entweder den Modus ausdrücklich als Vorfilter dokumentieren, dessen Ergebnis ein exakter Test bestätigen muss, oder ihn entfernen. \textbf{Kriterium:} Jede falsche Antwort ist erklärt oder behoben; der Modus kann nicht mehr unbemerkt als Orakel im Sinne von Definition~\ref{def:orakel} verwendet werden.
+
+\section{Der Subgraph Algorithmus und seine Verwandten}
+
+\subsection{Der Paarindex für weitere Relationen}
+
+Die Wiederverwendung \W{11} brachte den größten Gewinn. Offen ist, ob sich eine ähnliche Charakterisierung für andere Relationen finden lässt. \textbf{Zu klären:} (1) Die Paarcharakterisierung (Satz~\ref{satz:paar}) gilt für die Relation des Algorithmus; welche Abwandlungen (Gewichte, gerichtete Kanten, Knoten- und Kantenlabels zugleich) erhalten die Paarform? (2) Für die klassische Teilgraph-Relation ist das Problem NP-vollständig; ein Index kann dort höchstens als \emph{Vorfilter} dienen, der keine Treffer verliert, aber Kandidaten verwirft. Die Filterwirkung ließe sich an den Gen-DB-Daten messen: Anteil der verworfenen Kandidaten, Anteil der Treffer, die der Filter verliert (muss $0$ sein). (3) Wie verhalten sich Speicher und Aufbauzeit des Index bei wachsender Datenbank? \textbf{Erwartung:} Der Gewinn bleibt bei der Relation des Algorithmus am größten und ist bei der klassischen Relation auf den Vorfilter beschränkt.
+
+\subsection{Laufzeit und Schranken}
+
+Die Schranke $\Theta(n^3)$ gilt für den Signaturalgorithmus, nicht für die ganze Pipeline. Eine saubere Messung würde die Kosten in ihre Anteile zerlegen. \textbf{Schritte:} (1) Im Solver je Lauf die Phasenzeiten (Reduktion, Aufruf des Subgraph-Programms, Extraktion) ausgeben, soweit sie der Ergebnistyp bereits trägt, und im Experimente-Framework mitschreiben. (2) Den Exponenten getrennt für die Reduktion (erwartet nahe $2$ in der Literalzahl, weil die Adjazenzmatrix durch Paarvergleiche entsteht), für den Algorithmus (erwartet höchstens $3$ in der Knotenzahl des Clique-Graphen) und für die Datei-Ein- und Ausgabe bestimmen. (3) Beim Fit die Knotenzahl des Clique-Graphen statt der Literalzahl verwenden, die nach der Normalisierung auf höchstens drei Literale je Klausel etwas kleiner ist. \textbf{Kriterium:} Die Summe der Anteile stimmt mit der Gesamtzeit überein, und die gemessenen Exponenten lassen sich der theoretischen Schranke zuordnen.
+
+\subsection{Worst-Case-Instanzen}
+
+Die bisherigen Instanzen sind einfache AND-Bäume, kleine Zufallscircuits und ISCAS'85. Für den Algorithmus fehlen Eingaben, die gezielt viele gleiche Signaturen oder lange gemeinsame Teilstrings erzeugen. Eine Konstruktion solcher Familien würde zeigen, ob die Schranke erreicht wird oder die Laufzeit praktisch darunter bleibt. Für den exakten Test (exponentiell im ungünstigsten Fall) sind schwere Instanzen aus der Literatur der Cliquen- und Isomorphieprobleme zu verwenden; erwartet wird, dass die Laufzeit dort viele Größenordnungen vom Signaturalgorithmus abweicht und das Zeitlimit von \texttt{ExactSubgraph} (B14) wirksam wird.
+
+\subsection{Die 63-Knoten-Grenze}
+
+Die Signatur nutzt ein Maschinenwort. Dass \texttt{SubgraphAlgorithm} die Grenze nicht prüft (B6), ist der sichtbare Teil eines größeren Punktes: Größere Graphen brauchen eine Signaturdarstellung aus mehreren Wörtern. \textbf{Schritte:} Die Darstellung auf ein Feld von Wörtern verallgemeinern, die Reihenfolge der Bits so festlegen, dass die Rotation und der längste gemeinsame Teilstring unverändert funktionieren, und die Python-Referenz als Orakel verwenden. \textbf{Kriterium:} Gleichheit von Python und C++ auf Graphen mit mehr als $63$ Knoten in der Differenzialprüfung. Offen ist, wie stark die Verallgemeinerung die Laufzeit pro Vergleich erhöht; die Messung in Gen-DB (rund $0{,}074$\,ms je Einzelvergleich) liefert die Vergleichsbasis.
+
+\section{Gen-DB und die Suche}
+
+\subsection{Neumessung unter Linux}
+
+Die Gen-DB-Messungen stammen aus einer Windows-Umgebung mit vier logischen CPUs. \textbf{Schritte:} (1) Denselben Messlauf (\texttt{search\_backends}, \texttt{search\_universal}) unter Linux mit gleichen Daten und gleicher Anfragefolge wiederholen. (2) Dabei Betriebssystem, Compiler, Kernzahl und Python-Version aufschreiben. (3) Die Ergebnisse (Verhältnis $6{,}36$ im Gesamtlauf, $\approx37$ je Einzelvergleich, $80$- bis $115$-fach für den Index) vergleichen. \textbf{Erwartung:} Die Verhältnisse bleiben in der Größenordnung, die absoluten Zeiten ändern sich. Weichen die Verhältnisse deutlich ab, ist die Ursache (Prozessstart, Pickle, Betriebssystem-Scheduler) zu klären, denn das Sequenzdiagramm legt nahe, dass der serielle Anteil die Gesamtzeit bestimmt.
+
+\subsection{Der serielle Anteil der Suche}
+
+Nach den Messdateien macht der serielle Anteil mit der C++-Fassung $66{,}7\,\%$ der Zeit aus (Datenbankabfrage, Prozesskommunikation, Trefferliste). Das ist der nächste Engpass, nicht mehr der Algorithmus. Mögliche Maßnahmen, jeweils mit eigener Messung: die Kandidatenabfrage mit einem Index auf Knoten- und Kantenzahl beschleunigen, die Matrizen als gemeinsamen Speicher statt per \texttt{pickle} an die Worker geben, die Chunkgröße ($256$) und die Zahl der Worker an Kernzahl und Datenmenge anpassen, und die Treffer schrittweise ausliefern, statt die ganze Liste zu sammeln. Das Sequenzdiagramm zeigt, an welchen Schritten (Nachrichten~3 bis 7 und~15 bis 17) das ansetzt.
+
+\subsection{Weitere Eingabearten}
+
+Die Multi-Omics-Suche und die universelle Suche folgen demselben Ablauf. Offen ist, wie sich weitere Eingabearten einfügen (etwa Netzwerke mit Kantenlabels oder gerichtete Netzwerke), ohne dass die Fachlogik verzweigt. Das Sequenzdiagramm legt nahe, den Algorithmus-Rahmen als einzige Stelle zu behandeln, die von der Eingabeart abhängt, und die Treffer- und Antwortlogik gemeinsam zu halten.
+
+\subsection{Ein zweites Sequenzdiagramm}
+
+Das vorhandene Diagramm beschreibt den Erfolgsfall. Sinnvoll sind zwei Ergänzungen: ein Diagramm des \emph{Fehlerpfads} (Bibliothek nicht ladbar, Fallback auf Python, Warnung im Log) und eines für den \emph{Subgraph-SAT-Solver} mit den Lebenslinien Aufrufer, Reduktion, Adapter, Subgraph-Programm und Belegungsextraktion. Beide würden die Prozess- und Dateigrenzen sichtbar machen, die im Fließtext nur beschrieben sind.
+
+\section{Der Subgraph-SAT-Solver}
+
+\subsection{Ursache der Ausfälle ab $10\,487$ Literalen}
+
+Alle sechs \texttt{ERROR}-Läufe haben mindestens $10\,487$ Literale; alle Instanzen mit höchstens $7\,958$ Literalen enden mit Ergebnis oder Zeitlimit. Das legt eine Größengrenze nahe, belegt aber keine Ursache. \textbf{Schritte:} (1) Rückgabecode und Fehlermeldung je Lauf sichern. (2) Den Spitzenspeicher von Reduktion und Subgraph-Prozess messen (das Framework erfasst \texttt{ru\_maxrss} bereits). (3) Dieselben Instanzen auf einer Maschine mit deutlich mehr Speicher wiederholen. \textbf{Hypothesen:} Speichermangel (die eigene Abschätzung in Abschnitt~\ref{sec:exp_bedeutung} nennt bis zu etwa $5{,}5\cdot10^{7}$ Literalpaare bei $10\,487$ Literalen), ein fest eingebautes Größenlimit im Solver oder in einer Datei-Schnittstelle, oder ein Fehler beim Schreiben sehr großer JSON-Dateien. Welche zutrifft, entscheidet die Messung; die Fehlerzeiten von $24{,}77$ bis $40{,}74$\,s liegen deutlich unter dem Zeitlimit, schließen also einen Zeitablauf aus.
+
+\subsection{Speicherärmere Reduktion}
+
+Wenn der Speicher die Grenze setzt, ist die Reduktion der Ansatzpunkt: Die Adjazenzmatrix des Clique-Graphen wächst quadratisch mit den Literalen. Mögliche Auswege sind eine dünn besetzte Darstellung, die Auslagerung in Blöcke, oder eine Vorverarbeitung, die die Formel verkleinert (Einheitsklauseln propagieren, subsumierte Klauseln entfernen), bevor reduziert wird. Zu messen sind Speicherbedarf und Laufzeit gegen die Literalzahl vor und nach der Änderung; die Korrektheit der Kette (Satz~\ref{satz:extraktion}) muss die Änderung erhalten und lässt sich mit dem Referenzsolver auf denselben Dateien prüfen.
+
+\subsection{Unerfüllbare Instanzen}
+
+Der Solver löst nur die drei kleinsten der neun Miter-Instanzen. Offen ist, ob das an der Unerfüllbarkeit oder an den langen Klauseln der Miter-Formeln liegt (Klauseln mit $26$ bis $33$ Literalen gegenüber höchstens $10$ in den ISCAS-Formeln); beides ändert sich in den Daten gleichzeitig. \textbf{Schritte:} Paare von Instanzen mit gleicher Literalzahl und gleicher Klausellänge, aber unterschiedlicher Erfüllbarkeit erzeugen, etwa Miter mit und ohne eingebauten Unterschied; außerdem die Tseitin-Kodierung der Miter-Gates mit kürzeren Klauseln bauen (Hilfsvariablen für die ODER-Verknüpfung der Ausgänge). \textbf{Kriterium:} Die Laufzeit hängt bei gleicher Literalzahl und Klausellänge nicht (oder erkennbar) von der Erfüllbarkeit ab.
+
+\subsection{Vergleich mit etablierten Solvern}
+
+Der Python-Referenzsolver ist ausdrücklich kein Maßstab. \textbf{Schritte:} MiniSat und CaDiCaL über dasselbe Aufrufprotokoll (Exit-Codes $10$ und $20$, \texttt{s}-Zeile) anbinden und auf denselben DIMACS-Dateien messen; die Basislinie je Solver bestimmen. \textbf{Erwartung:} Etablierte Solver lösen alle Instanzen der bisherigen Experimente in Millisekunden, sodass sich die Frage verschiebt: Wo, wenn überhaupt, ist der Subgraph-Weg konkurrenzfähig? Plausible Kandidaten sind Instanzen mit viel gleicher Struktur, bei denen der Paarindex Vergleiche spart. Wichtig ist, dass das Ergebnis ehrlich berichtet wird, auch wenn es negativ ist: Die Reduktionskette ist ein Beweis der Korrektheit und der Wiederverwendung eines Orakels, kein Geschwindigkeitsversprechen.
+
+\subsection{Alternative Orakel}
+
+Der exakte Teilgraphtest in der Kette verwendet vom Signaturalgorithmus nichts (\W{3}, \W{14}). Eine Folgeuntersuchung könnte weitere Teilgraph-Orakel austauschbar anbinden und über die Dateischnittstelle vergleichen, etwa eine eigene Implementierung nach dem VF2-Verfahren oder einen vorhandenen Isomorphie-Solver. Das Protokoll (Datei in, Exit-Code und Text aus) ist dafür vorgesehen; zu klären ist, wie das Orakel Modus, Zeitlimit und Version meldet (Abschnitt~\ref{sec:ausblick_metadaten}).
+
+\section{Das Experimente-Framework}
+
+\subsection{Metadaten in jeder Messreihe}
+\label{sec:ausblick_metadaten}
+
+Die Arbeit des Frameworks nennt weder das benutzte Subgraph-Programm noch den Modus (\texttt{SUBGRAPH\_MODE}, \texttt{exact} oder \texttt{heuristic}), die Zeitlimits des Adapters noch die Versionsstände von Solver, Adapter und Bibliothek. Ein Lauf im Modus \texttt{heuristic} misst aber einen anderen Algorithmus als einer im Modus \texttt{exact}. \textbf{Schritte:} Das Framework schreibt je Messreihe eine Metadatei mit Modus, Zeitlimits (Adapter und Solver), Commit-Hashes aller beteiligten Repositories, Compiler und Compilerschaltern, Betriebssystem, Kernzahl und Speicher. Die Datei wird vor dem ersten Lauf geschrieben, damit sie auch bei einem abgebrochenen Lauf vorliegt (der Lauf der neuen Version brach bei \texttt{TargetAND\_m10000} ab, und die am Ende geschriebenen Dateien fehlten). \textbf{Kriterium:} Aus den Ergebnisdateien allein lässt sich jede Messung einem Build und einer Konfiguration zuordnen.
+
+\subsection{Vollständige Wiederholung des Full-Presets}
+
+\textbf{Schritte:} Das Full-Preset auf einer Maschine mit mehr Speicher und mehr als einem Kern wiederholen; alle Ergebnisdateien sichern, auch die Einzelläufe; Rückgabecodes und Fehlermeldungen je Lauf speichern; die Skalierungsinstanzen $m=10\,000$ und $m=50\,000$ messen; den Solver mit CMake (\texttt{-O3 -march=native}) statt \texttt{g++ -O2} bauen und beide Builds vergleichen. Dass die Einzelläufe fehlten, verhinderte jede Aussage über die Streuung; mit ihnen lassen sich Quartile, Konfidenzintervalle und ein Test auf die Nicht-Monotonie bei $d=8$ und $d=9$ nachholen.
+
+\subsection{Mehr Messpunkte und bessere Fits}
+
+Der Exponent $2{,}08\pm0{,}07$ stützt sich auf sechs Circuits, die zugleich Größe, Struktur und Gate-Mischung ändern. Besser wäre eine Familie mit einem Parameter: Target-AND mit $m=200$ bis $800$ schließt die Lücke zwischen $1\,094$ und $10\,994$ Literalen. Weiter helfen mehr Wiederholungen bei den großen Instanzen (heute $13$, $6$ und $3$ Läufe wegen des Zeitbudgets) und ein Vergleich verschiedener Fit-Formen (reines Potenzgesetz, Potenzgesetz mit Achsenabschnitt), um zu sehen, ob der Exponent von der Wahl abhängt.
+
+\subsection{Weitere Instanzfamilien}
+
+Offen sind unter anderem: strukturell andere Benchmarks (die Hardware-Verifikation hat weitere Familien als ISCAS'85), Zufalls-3-SAT nahe dem Phasenübergang (Verhältnis von Klauseln zu Variablen um $4{,}27$), Probleme aus der Praxis der Wiederverwendung (Gen-DB-Netzwerke als Cliquen- und Teilgraphprobleme) und Instanzen mit bekannter, aber schwer zu findender Lösung. Hinzu kommen Strukturmaße der ISCAS-Circuits (Tiefe, Fan-out, Clustering) und ihr Einfluss auf die Laufzeit. Jede Familie braucht dieselbe Disziplin wie die neue Version: Status je Lauf, Modellprüfung, Basislinie.
+
+\subsection{Die Messreihen reproduzierbar halten}
+
+Die Auswertung der neuen Version (Skript \texttt{paper\_analysis\_v2.py}) erzeugt alle Zahlen des Berichts aus den Rohdateien. Dieses Vorgehen sollte für diese Arbeit übernommen werden: Jede Zahl des Experimente-Kapitels sollte per Skript aus einer maschinenlesbaren Datei in die Tabelle gelangen, statt von Hand abgeschrieben zu werden, und ein Test sollte Abweichungen zwischen Text und Daten melden.
+
+\section{Das einheitliche Laden von Bibliotheken}
+
+Das Konzept (Abschnitt~\ref{sec:sl}) ist ein Entwurf. Sein eigener Fahrplan und die Offene-Fragen-Liste sind der Ausgangspunkt; dieser Abschnitt ergänzt, wie sich das Vorhaben in dieser Arbeit überprüfen ließe.
+
+\subsection{Der Fahrplan in Schritten}
+
+\begin{enumerate}
+	\item \textbf{Das Ziel schärfen:} Benennung, Export, Suchpfad, Metadaten und vor allem das Ladeverfahren und seine Schnittstelle vereinheitlichen, nicht den Maschinencode.
+	\item \textbf{Die Spezifikation schreiben:} Suchreihenfolge, Lebenszyklus, Fehlercodes, Metadaten und Exportattribut als versioniertes Dokument.
+	\item \textbf{Den Referenzlader bauen (Stufe~1):} ein kleiner C-Kern mit Plattformadaptern für Windows, Linux und macOS sowie ein CMake-Modul; mit der Python-Anbindung beginnen, da beide Projekte \texttt{ctypes} nutzen.
+	\item \textbf{Die Konformitätssuite parallel schreiben,} in der Continuous Integration auf allen drei Systemen und mit den Werkzeugketten MSVC und MinGW.
+	\item \textbf{Die beiden Beispielprojekte migrieren} und messen.
+	\item \textbf{Erst nach nachgewiesenem Nutzen} Stufe~2 (Container, Fat Binaries) und Stufe~3 (Betriebssystemunterstützung) verfolgen.
+\end{enumerate}
+
+\subsection{Den Nutzen messen}
+
+Der größte Mangel des Entwurfs ist, dass sein Nutzen behauptet, aber nicht gemessen ist. Die Migration der beiden Projekte liefert die Gelegenheit. \textbf{Messgrößen:} Zeilen Plattformcode vor und nach der Migration (die Liste in Abschnitt~\ref{sec:sl_anwendung} nennt die betroffenen Stellen: \texttt{library\_filename()}, der \texttt{add\_dll\_directory}-Block, die Exportmakros, die Linker-Schalter, die plattformabhängigen Teile der README); Zahl der Fehlerarten, die der Lader mit einem Code statt eines Systemtextes meldet; Zeit bis zum ersten erfolgreichen Lauf eines neuen Nutzers auf jedem System; Zahl der Plattform-Sonderfälle in der Continuous Integration. \textbf{Kriterium:} Beide Projekte laufen auf Windows, Linux und macOS mit demselben Ladecode, und die Messgrößen sinken.
+
+\subsection{Die offenen Fragen}
+
+Der Entwurf nennt acht offene Fragen (Container oder Namenskonvention, C++-Laufzeit, mehrere Architekturen, Versionierung, Trennzeichen von \texttt{SL\_PATH}, verzögertes Laden, Entladen bei Threads, Zuständigkeit). Aus dieser Arbeit kommt eine neunte hinzu: Die Suchreihenfolge hält beim \emph{ersten} Treffer an, der Abschnitt zur Sicherheit verlangt aber einen Fehler bei zwei Kandidaten mit widersprüchlichen Metadaten. Ein möglicher Ausweg ist ein Normalbetrieb, der dem ersten Treffer folgt, und ein gehärteter Modus, der auch spätere Suchursprünge prüft. Diese Entscheidung ist in der Spezifikation festzuhalten und in der Konformitätssuite zu testen. Für die Frage der C++-Laufzeit liefert Gen-DB einen Hinweis: Dort wird die MinGW-Laufzeit unter Windows statisch gelinkt, im Econ-Projekt dagegen werden alle \texttt{PATH}-Ordner eingetragen; ein Lader müsste beide Fälle abdecken oder die Laufzeit im Container erklären.
+
+\subsection{Zwischenlösung: ein gemeinsames Hilfspaket}
+
+Bevor ein Lader existiert, lässt sich ein Teil des Nutzens schon mit einem kleinen gemeinsamen Python-Paket erreichen, das beide Projekte importieren: Dateiname je Plattform, Suchreihenfolge, \texttt{add\_dll\_directory}, ABI-Prüfung und einheitliche Fehlertexte. Es ist keine Standardisierung, aber es entfernt die doppelte Pflege und liefert Erfahrung für die Spezifikation. Zu entscheiden ist, ob das Paket aus dem Econ-Projekt (strenges Verhalten ohne Rückfall) oder aus Gen-DB (Hash-Cache und Rückfall) abgeleitet wird; empfehlenswert ist ein gemeinsamer Kern mit einem Schalter für den Rückfall, sodass die zwei Verfahren als zwei Konfigurationen derselben Bibliothek erscheinen.
+
+\subsection{Ausweitung auf weitere Sprachen}
+
+Beide Projekte nutzen \texttt{ctypes}. Der Entwurf nennt weitere Sprachanbindungen (Rust, Java, C++). Eine nützliche erste Erweiterung wäre eine zweite Sprache neben Python, um zu prüfen, ob die Schnittstelle sprachneutral ist: Wenn die Anbindung in Rust nur die Funktionen \texttt{sl\_open}, \texttt{sl\_symbol}, \texttt{sl\_close}, \texttt{sl\_error} und \texttt{sl\_info} aufrufen muss und ihr Verhalten durch dieselbe Konformitätssuite geprüft wird, trägt die Abstraktion.
+
+\section{Verbesserungen an dieser Arbeit}
+
+\begin{itemize}
+	\item \textbf{Die Quelltextprüfung des Experimente-Frameworks nachholen.} Heute stammen alle Zahlen aus seiner eigenen Arbeit. Ein Lauf des Frameworks im Rahmen dieser Prüfung, mit denselben Aussagearten (gelesen, geprüft) wie bei den anderen Projekten, würde die Lücke schließen.
+	\item \textbf{Die Experimente unter der Prüfumgebung wiederholen,} damit die Messwerte in Kapitel~\ref{chap:experimente} nicht nur zitiert, sondern \emph{geprüft} im Sinn von Abschnitt~\ref{sec:einleitung_aussagen} sind.
+	\item \textbf{Die Katalog-Tabelle und das Abhängigkeitsbild aus den Quellen erzeugen,} damit sie bei einer neuen Wiederverwendung nicht von Hand nachgezogen werden müssen.
+	\item \textbf{Die Befunde als Tickets führen} und in dieser Arbeit nach dem Beheben als erledigt kennzeichnen.
+\end{itemize}
+
+\section{Eine Reihenfolge}
+\label{sec:ausblick_reihenfolge}
+
+Die Arbeitsfelder hängen voneinander ab. Eine sinnvolle Reihenfolge nach Nutzen und Aufwand:
+
+\begin{enumerate}
+	\item \textbf{Sofort (Stunden bis Tage):} die drei hohen Befunde (B1 bis B3), die Metadatei je Messreihe und das Sichern von Rückgabecode und Einzelläufen.
+	\item \textbf{Kurzfristig (Tage bis Wochen):} die mittleren und niedrigen Befunde, die vollständige Wiederholung des Full-Presets mit mehr Speicher, die Neumessung von Gen-DB unter Linux und die Klärung des Modus \texttt{heuristic}.
+	\item \textbf{Mittelfristig (Wochen bis Monate):} die Ursache der Ausfälle ab $10\,487$ Literalen und die speicherärmere Reduktion, die Zerlegung der Laufzeit in Phasen, der Vergleich mit MiniSat und CaDiCaL, die Worst-Case-Instanzen und die Erweiterung der Signatur über $63$ Knoten.
+	\item \textbf{Langfristig:} der Referenzlader und die Konformitätssuite, die Migration beider Projekte, der Paarindex für weitere Relationen und, nach nachgewiesenem Nutzen, die Stufen~2 und~3 des Konzepts.
+\end{enumerate}
+
+Zwei Abhängigkeiten sind zu beachten. Erstens setzt jede Aussage über die Skalierung des Solvers die Metadatei und die Einzelläufe voraus; ohne sie bleiben Zahlen unvergleichbar. Zweitens sollten B1 und B5 vor der Migration auf einen gemeinsamen Lader behoben sein, weil beide sonst im Lader als vermeintliche Ladefehler erscheinen. Die Messungen und Zusagen dieses Kapitels sind Erwartungen, die erst durch die jeweilige Messung zu belegen sind.
+
+\begin{thebibliography}{9}
+	\bibitem{epp2026subgraph} S.~Epp: \emph{Der Subgraph Algorithmus}, 2026. \url{https://github.com/naphez86/subgraph}.
+	\bibitem{karp1972} R.~M.~Karp: Reducibility among Combinatorial Problems. In: R.~E.~Miller, J.~W.~Thatcher (Hrsg.): \emph{Complexity of Computer Computations}, Plenum Press, 1972, S.~85--103.
+	\bibitem{garey1979} M.~R.~Garey, D.~S.~Johnson: \emph{Computers and Intractability: A Guide to the Theory of NP-Completeness}, W.~H.~Freeman, 1979.
+	\bibitem{tseitin1968} G.~S.~Tseitin: On the Complexity of Derivation in Propositional Calculus. In: \emph{Studies in Constructive Mathematics and Mathematical Logic, Part~II}, 1968.
+	\bibitem{brglez1985} F.~Brglez, H.~Fujiwara: A Neutral Netlist of 10 Combinational Benchmark Circuits and a Target Translator in Fortran. \emph{Proc.\ IEEE International Symposium on Circuits and Systems (ISCAS)}, 1985.
+	\bibitem{epp2013} S.~Epp: \emph{Learning M-DNF in Boolean Circuits}. Masterarbeit, Universität Paderborn, 2013.
+	\bibitem{cook1971} S.~A.~Cook: The Complexity of Theorem-Proving Procedures. \emph{Proc.\ 3rd Annual ACM Symposium on Theory of Computing (STOC)}, 1971.
+	\bibitem{googletest} Google: \emph{GoogleTest}, Version 1.14.0, \url{https://github.com/google/googletest}.
+	\bibitem{nlohmann} N.~Lohmann: \emph{JSON for Modern C++}, Version 3.11.2, \url{https://github.com/nlohmann/json}.
+\end{thebibliography}

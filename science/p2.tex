@@ -1,0 +1,1823 @@
+
+% =====================================================================
+\part{Wiederverwendungen}
+% =====================================================================
+
+\chapter{Der Katalog der Wiederverwendungen}
+\label{chap:katalog}
+
+Dieses Kapitel führt \emph{alle} Wiederverwendungen des Subgraph Algorithmus in den vier hochgeladenen Projekten auf, dazu die eine bekannte, aber nicht geprüfte Wiederverwendung im Experimente-Framework. Jede Wiederverwendung hat eine Nummer \W{1} bis \W{18}, eine Form nach Tabelle~\ref{tab:formen} und einen Verweis auf das Kapitel, das sie vertieft.
+
+\section{Übersicht}
+
+{\footnotesize
+\begin{longtable}{@{}L{0.9cm}L{3.9cm}L{2.2cm}L{3.0cm}L{4.5cm}@{}}
+	\caption{Katalog der Wiederverwendungen. \emph{Wiederverwendet} nennt den Teil des Ursprungs, der tatsächlich benutzt wird.}
+	\label{tab:katalog} \\
+	\toprule
+	Nr. & Wiederverwendung & Ort & Form & Wiederverwendet \\
+	\midrule
+	\endfirsthead
+	\toprule
+	Nr. & Wiederverwendung & Ort & Form & Wiederverwendet \\
+	\midrule
+	\endhead
+	\multicolumn{5}{l}{\emph{Kern: \texttt{csubgraph}}} \\
+	\W{1} & C++-Neuimplementierung \texttt{SubgraphAlgorithm} & csubgraph & Portierung & gesamter Algorithmus \\
+	\W{2} & \texttt{MultiOmics}: Schichtstapel, Modi, Strategien & csubgraph & Verallgemeinerung & \texttt{computeLCS}, \texttt{rotateSequence}, \texttt{calculateSignatures}, \texttt{extractRowComponents} \\
+	\W{3} & \texttt{ExactSubgraph}: exakter Teilgraphtest & csubgraph & Infrastruktur & nur Bibliothek, Build, Adapter \\
+	\W{4} & \texttt{subgraph-cli}: JSON über stdin/stdout & csubgraph & Prozessnutzung & \texttt{compareGraphs} \\
+	\W{5} & Adapter \texttt{SolverCli}: Dateiprotokoll, Modi \texttt{exact}/\texttt{heuristic} & csubgraph & Prozessnutzung & \texttt{ExactSubgraph}, \texttt{compareGraphs} \\
+	\midrule
+	\multicolumn{5}{l}{\emph{Gen-DB}} \\
+	\W{6} & Python-Paket \texttt{subgraph} als Abhängigkeit mit Fallback & gen-db & Bibliotheksnutzung & Klasse \texttt{Subgraph}, nur über die API \\
+	\W{7} & C++-Bibliothek über C-Wrapper und \texttt{ctypes} & gen-db & Bibliotheksnutzung & \texttt{compareGraphs} \\
+	\W{8} & \texttt{MultiOmics} über zweiten Wrapper & gen-db & Bibliotheksnutzung & \texttt{compareLayered} \\
+	\W{9} & \texttt{multiomics\_python}: Neuimplementierung als Fallback & gen-db & Neu\-imple\-men\-tie\-rung & Relation, ohne Code \\
+	\W{10} & \texttt{universal\_core}: Relation auf Mengenfolgen & gen-db & Verallge\-meine\-rung & Relation (Satz~\ref{satz:paar}) \\
+	\W{11} & \texttt{universal\_index}: Paarindex ohne Einzelvergleich & gen-db & Begriffliche & Paarcharakterisierung \\
+	\W{12} & Prozess-Pool \texttt{compare\_many*} & gen-db & Infrastruktur & keine Relation, nur Aufruf \\
+	\W{13} & Experimente und Differenzialtests & gen-db & Infrastruktur & alle Fassungen als Prüfling \\
+	\midrule
+	\multicolumn{5}{l}{\emph{Solver, Experimente, Theorie}} \\
+	\W{14} & Solver ruft \texttt{ExactSubgraph} als Orakel & subgraph-sat-solver & Prozessnutzung & exakter Test, Einbettung \\
+	\W{15} & Solver ruft \texttt{SubgraphAlgorithm} als unvollständiges Orakel & subgraph-sat-solver & Prozessnutzung & Signaturrelation (Diagnose) \\
+	\W{16} & Belegungsextraktion aus dem \texttt{mapping} & subgraph-sat-solver & Prozessnutzung & Einbettung als Ausgabe \\
+	\W{17} & Experimente-Framework startet den Solver & Experimente & Prozessnutzung & nur Solver-Ausgabe \\
+	\W{18} & Paarcharakterisierung als gemeinsame Theorie & Theorie & Begriffliche & \W{2}, \W{9}, \W{10}, \W{11} \\
+	\bottomrule
+\end{longtable}
+}
+
+\section{Der Wiederverwendungsbaum}
+
+Abbildung~\ref{abb:baum} zeigt, wie die Wiederverwendungen aufeinander aufbauen. Wichtig ist die Unterscheidung zwischen Wiederverwendungen \emph{des Algorithmus} (Wurzel: Python-Referenz) und \emph{der Bibliothek} (Wurzel: \texttt{csubgraph}, unabhängig vom Algorithmus).
+
+\begin{sidewaysfigure}[!ht]
+    \centering
+    \begin{tikzpicture}[
+        font=\footnotesize, 
+        >={Stealth[length=2mm]},
+        n/.style={
+            draw=mainblue, 
+            rounded corners=3pt, 
+            fill=lightgray, 
+            align=center, 
+            minimum height=1.0cm, 
+            text width=2.5cm, 
+            inner sep=4pt
+        },
+        r/.style={
+            draw=accentred, 
+            very thick, 
+            rounded corners=3pt, 
+            fill=white, 
+            align=center, 
+            minimum height=1.0cm, 
+            text width=3.5cm, 
+            inner sep=4pt
+        }
+    ]
+        % --- Ebene 0: Wurzel ---
+        \node[r] (py) at (9.0, 7.5) {Python-Referenz\\\texttt{subgraph}};
+
+        % --- Ebene 1: Hauptarme links & rechts ---
+        \node[r] (cpp) at (3.5, 5.0) {\W{1} C++\\\texttt{SubgraphAlgorithm}};
+        \node[n] (w6)  at (14.5, 5.0) {\W{6} Paket\\als Fallback};
+
+        % --- Ebene 2: Unterarme linker Zweig (C++) ---
+        \node[n] (mo)  at (0.0, 2.5) {\W{2} MultiOmics};
+        \node[n] (w4)  at (3.0, 2.5) {\W{4} CLI};
+        \node[n] (w5)  at (6.5, 2.5) {\W{5} Adapter};
+
+        % --- Ebene 2: Unterarme rechter Zweig & C-Wrapper ---
+        \node[n] (w7)  at (11.0, 2.5) {\W{7} C-Wrapper};
+        \node[n] (w8)  at (14.0, 2.5) {\W{8} Omics-Wrapper};
+        \node[n] (w9)  at (17.5, 2.5) {\W{9} Python-Omics};
+
+        % --- Ebene 3: Theorie / Weitere Verzweigungen ---
+        \node[n] (w10) at (17.5, 0.0) {\W{10} Mengenfolgen};
+        \node[n] (w3)  at (6.5, 0.0) {\W{3} Exact};
+
+        % --- Ebene 4: Solver & Index ---
+        \node[n] (w11) at (17.5, -2.5) {\W{11} Paarindex};
+        \node[n] (w14) at (10.0, -2.5) {\W{14}--\W{16} Solver};
+        \node[n] (w15) at (3.5, -2.5) {\W{15} heuristic};
+
+        % --- Ebene 5: Experimente ---
+        \node[n] (w17) at (6.5, -5.0) {\W{17} Experimente};
+
+        % --- Verbindungen (Pfeile) ---
+        \draw[->] (py) -- (cpp); 
+        \draw[->] (py) -- (w6); 
+        
+        \draw[->] (cpp) -- (mo); 
+        \draw[->] (cpp) -- (w4); 
+        \draw[->] (cpp) -- (w5);
+        \draw[->] (cpp) -- (w7); 
+        
+        % \draw[->] (mo) -- (w8); 
+        % \draw[->] (mo) -- (w9); 
+        
+        \draw[->] (w9) -- (w10); 
+        \draw[->] (w10) -- (w11);
+        
+        \draw[->] (w5) -- (w3); 
+        \draw[->] (w3) -- (w14); 
+        \draw[->] (w5) -- (w15); 
+        \draw[->] (w14) -- (w17);
+        \draw[->] (w3) -- (w17);
+    \end{tikzpicture}
+    \caption{Abhängigkeiten zwischen den Wiederverwendungen. Pfeile bedeuten „wird wiederverwendet in“. \W{12}, \W{13} und \W{18} betreffen mehrere Zweige und sind nicht eingezeichnet.}
+    \label{abb:baum}
+\end{sidewaysfigure}
+
+Die in Abbildung~\ref{abb:baum} dargestellte Architektur visualisiert die hierarchischen Abhängigkeiten und Verflechtungen aller im Katalog erfassten Wiederverwendungen (\W{1} bis \W{18}). Als zentraler Ausgangspunkt und methodische Wurzel dient die \textbf{Python-Referenz} (\texttt{subgraph}, rot hervorgehoben), welche die exakte Spezifikation der Relation in ausführbarer Form darstellt. Von diesem Ursprung aus verzweigt sich die Code- und Konzeptbasis in zwei Hauptrichtungen: einerseits in die direkte \textbf{C++-Portierung} (\W{1}) sowie andererseits in die direkte Einbindung des \textbf{Python-Pakets als Fallback} in Gen-DB (\W{6}).
+
+Der C++-Zweig (\W{1}) bildet seinerseits das Fundament für eine Vielzahl darauf aufsetzender Module und Wrapper:
+\begin{itemize}
+    \item \textbf{Schnittstellen und Adapter:} Über die Zwischenstationen \W{2} (\texttt{MultiOmics}), \W{4} (Kommandozeilenschnittstelle) und \W{5} (Prozess-Adapter) werden sowohl dichte Graphstrukturen als auch exakte Teilgraphtests angebunden.
+    \item \textbf{C- und Omics-Wrapper:} Die Module \W{7} (C-Wrapper), \W{8} (Omics-Wrapper) und \W{9} (Python-Omics-Neuimplementierung) leiten die Logik in Richtung theoretischer Fundierungen wie Mengenfolgen (\W{10}) und den effizienten Paarindex (\W{11}) weiter.
+    \item \textbf{Solver-Integration und Experimente:} Über den exakten Test (\W{3}) und den Adapter (\W{5}) greifen die Solver-Komponenten (\W{14}--\W{16}) sowie heuristische Prüfstände (\W{15}) auf die Algorithmen zu, deren Ergebnisse letztlich in die Experimente-Infrastruktur (\W{17}) einfließen.
+\end{itemize}
+
+Globale Querschnittsaufgaben wie der parallele Prozess-Pool (\W{12}), die Differenzialtests (\W{13}) und die übergreifende Paarcharakterisierung als gemeinsame Theorie (\W{18}) betreffen mehrere dieser Zweige parallel und sind im Baum als konzeptionelle Klammern zu verstehen.
+
+\section{Was wird tatsächlich wiederverwendet?}
+
+Der Titel dieser Arbeit könnte suggerieren, dass überall der Algorithmus benutzt wird. Das stimmt nicht. Tabelle~\ref{tab:matrix} zeigt je Wiederverwendung, welche Bestandteile des Algorithmus tatsächlich zum Einsatz kommen.
+
+\begin{sidewaystable}
+	\centering
+	\small
+	\begin{tabularx}{\textheight}{@{}L{4.4cm}YYYYYY@{}}
+		\toprule
+		& Signaturen & Rotation + Tabelle & Relation $\preceq$ & Ergebnis\-werte & Bibliothek & Paar\-satz \\
+		\midrule
+		\W{1} C++ & ja & ja & ja & ja & -- & -- \\
+		\W{2} MultiOmics & ja & Strategie \texttt{DYNAMIC} & ja & ja & ja & Strategie \texttt{BIGRAM} \\
+		\W{3} Exact & -- & -- & -- & -- & ja & -- \\
+		\W{6} Paket & ja & ja & ja & ja\,(Strings) & -- & -- \\
+		\W{7}, \W{8} Wrapper & indirekt & indirekt & indirekt & Codes 0--5 & ja & -- \\
+		\W{9} Python-Omics & ja & -- & ja & ja & -- & ja \\
+		\W{10} Mengenfolgen & -- & -- & ja & ja & -- & ja \\
+		\W{11} Paarindex & -- & -- & ja & -- & -- & ja \\
+		\W{14} Orakel & -- & -- & -- & -- & ja & -- \\
+		\W{15} heuristic & ja & ja & ja & ja & ja & -- \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Welche Bestandteile des Algorithmus welche Wiederverwendung benutzt. \W{14} benutzt vom Algorithmus \emph{nichts}, vom Kern nur die Bibliothek.}
+	\label{tab:matrix}
+\end{sidewaystable}
+
+\section{Die Wiederverwendungen im Einzelnen}
+
+\paragraph{\W{1}.} Neuimplementierung in C++17; Abschnitt~\ref{sec:cpp_algorithmus}. Grund war die Laufzeit der Python-Fassung. Die Portierung ist wörtlich, bis auf den Ergebniswert \texttt{IDENTICAL} und die daraus folgende Abweichung bei $1\times1$-Graphen (Abschnitt~\ref{sec:abweichungen}).
+
+\paragraph{\W{2}.} \texttt{MultiOmics} ruft \texttt{computeLCS}, \texttt{rotateSequence}, \texttt{calculateSignatures} und \texttt{extractRowComponents} direkt aus \W{1} auf, ergänzt Schichtstapel, die Modi \texttt{COHERENT}/\texttt{INDEPENDENT} und die Strategie \texttt{BIGRAM}.
+
+\paragraph{\W{3}.} Wiederverwendet werden nur Bibliothek, Build und Adapter. Der Algorithmus selbst wird \emph{nicht} benutzt; das Modul ist ein zweiter, andersartiger Inhalt derselben Bibliothek.
+
+\paragraph{\W{4}, \W{5}.} Zwei Prozessschnittstellen für zwei Nutzer: JSON für Gen-DB (früher), Dateiprotokoll für den Solver. Beide sind dünne Hüllen um die Bibliothek.
+
+\paragraph{\W{6}.} Gen-DB bindet das Python-Paket als Abhängigkeit ein und ruft ausschließlich die öffentliche API \texttt{Subgraph().compare\_graphs(A, B)} auf; Abschnitt~\ref{sec:gendb_python}.
+
+\paragraph{\W{7}, \W{8}.} Die Bibliothek wird per C-Wrapper und \texttt{ctypes} im selben Prozess aufgerufen; Abschnitt~\ref{sec:gendb_wrapper}.
+
+\paragraph{\W{9}.} Python-Neuimplementierung der Mehrschicht-Relation, damit Gen-DB ohne C++ läuft; Abschnitt~\ref{sec:gendb_fallbacks}.
+
+\paragraph{\W{10}.} Dieselbe Relation auf Mengenfolgen, ohne Knotengrenze; Abschnitt~\ref{sec:universal}.
+
+\paragraph{\W{11}.} Ein invertierter Paarindex, der die Relation nicht mehr für jedes Paar auswertet, sondern Trefferlisten liest; Abschnitt~\ref{sec:index}.
+
+\paragraph{\W{12}, \W{13}.} Prozess-Pool und Experimente sind Infrastruktur: Sie wiederverwenden die Aufrufschnittstelle, nicht die Relation; Abschnitte~\ref{sec:pool} und~\ref{sec:gendb_experimente}.
+
+\paragraph{\W{14}--\W{16}.} Der Solver benutzt den exakten Test als Orakel (\W{14}), den Signaturmodus als unvollständigen Diagnosepfad (\W{15}) und die Einbettung für die Belegungsextraktion (\W{16}); Kapitel~\ref{chap:solver}.
+
+\paragraph{\W{17}.} Das Experimente-Framework startet den Solver als Prozess; Kapitel~\ref{chap:experimente}.
+
+\paragraph{\W{18}.} Die Paarcharakterisierung (Satz~\ref{satz:paar}) erklärt, warum \W{2}, \W{9}, \W{10} und \W{11} dieselbe Relation berechnen; sie ist die einzige \emph{theoretische} Wiederverwendung.
+
+\chapter{Gen-DB}
+\label{chap:gendb}
+
+Gen-DB ist die größte Anwendung und enthält die meisten Wiederverwendungen (\W{6} bis \W{13}). Die fachliche Logik (Auswahl der Kandidaten, Bewertung, biologische Relevanz) bleibt in Gen-DB; der Kern liefert nur die Relation.
+
+\section{Das Python-Paket als Abhängigkeit (\W{6})}
+\label{sec:gendb_python}
+
+Die Datei \texttt{pyproject.toml} fordert die Abhängigkeit aus dem Repository \texttt{subgraph @ git+https://github.com/naphez86/subgraph.git@main}. Der Quelltext benutzt ausschließlich die öffentliche API: \texttt{from subgraph import Subgraph}, dann \texttt{Subgraph().compare\_graphs(A, B)}. Das Paket ist der Rückfallweg, wenn die C++-Bibliothek nicht genutzt werden kann (Abschnitt~\ref{sec:gendb_fallbacks}). Die Abhängigkeit zeigt auf den Zweig \texttt{main} und nicht auf eine feste Version; ein Wechsel am Zweig ändert das Verhalten ungeprüft (Kapitel~\ref{chap:befunde}).
+
+\section{C-Wrapper und \texttt{ctypes} (\W{7}, \W{8})}
+\label{sec:gendb_wrapper}
+
+Python kann eine statische Bibliothek nicht laden. Gen-DB (\texttt{csubgraph\_native.py}) linkt deshalb beim ersten Gebrauch \texttt{libsubgraphlib.a} mit einem kleinen C-Wrapper zu einer gemeinsamen Bibliothek und lädt diese mit \texttt{ctypes} in den Prozess. Es gibt keinen Prozessstart und keine JSON-Kodierung je Vergleich.
+
+\begin{itemize}
+	\item \emph{Auffinden:} Die Umgebungsvariable \texttt{CSUBGRAPH\_LIB\_PATH} zeigt auf die \texttt{.a}-Datei oder einen Ordner, der sie enthält (Projektordner, \texttt{build/}, \texttt{build/Release}).
+	\item \emph{Bauen:} Aufruf von \texttt{g++ -std=c++17 -O2 -shared -fPIC} mit \texttt{--whole-archive} um die Bibliothek; ist sie mit \texttt{--coverage} gebaut, kommt \texttt{-lgcov} hinzu.
+	\item \emph{Cache:} Das Ergebnis liegt in einem Cache-Ordner, benannt nach einem Hash aus Bibliothek, Wrapper, Header und ABI-Version; es wird nur neu gebaut, wenn sich eines davon ändert. Das Schreiben erfolgt in eine Temporärdatei und wird atomar umbenannt, damit parallel startende Worker keine halbe Datei laden.
+	\item \emph{Vertrag:} \texttt{int}-Felder, ein Fehlerpuffer von 512 Byte und eine Versionsfunktion (\texttt{csub\_abi\_version}, \texttt{csub\_omics\_abi\_version}). Stimmt die Version nicht, wird die Bibliothek nicht benutzt.
+	\item \emph{Zwei Wrapper:} Einzelvergleich (\W{7}) und Multi-Omics (\W{8}) sind getrennt gebaut. Enthält ein älteres Archiv die Klasse \texttt{MultiOmics} nicht (Textsuche im Archiv), bleibt der Einzelvergleich nutzbar und nur Multi-Omics fällt auf Python zurück.
+\end{itemize}
+
+Ein Schichtstapel mit $L$ Schichten der Größe $n$ wird als \texttt{int}-Feld der Länge $L n^2$ übergeben, Eintrag (Schicht $l$, Zeile $i$, Spalte $j$) an Position $l n^2+i n+j$. Die Ergebniscodes $0$ bis $5$ werden in Python in die Namen aus Tabelle~\ref{tab:resultcodes} zurückübersetzt; die Zuordnung steht an vier Stellen (Kapitel~\ref{chap:befunde}).
+
+\section{Fallbacks: \W{6} und \W{9}}
+\label{sec:gendb_fallbacks}
+
+Der Executor (\texttt{subgraph\_executor.py}) löst die Implementierung je Prozess einmal auf: Ist \texttt{CSUBGRAPH\_LIB\_PATH} gesetzt und die Bibliothek nutzbar, läuft C++; sonst (nicht gesetzt, Compiler fehlt, Build- oder Ladefehler) läuft Python mit einer Warnung im Log. Für Multi-Omics gilt dieselbe Auswahl getrennt: C++ (\W{8}) oder \texttt{multiomics\_python} (\W{9}).
+
+\W{9} ist eine Neuimplementierung der C++-Relation in Python (136 Zeilen, Funktionen \texttt{row\_components}, \texttt{contains}, \texttt{compare\_layered}). Sie entspricht \W{2} mit Strategie \texttt{BIGRAM}. Weil es kein gemeinsamer Quelltext ist, verlangt sie Differenzialtests: Die Experimente prüfen $5\,000$ Paare in beiden Modi, also $10\,000$ Vergleiche, ohne Abweichung (Gen-DB-Messdatei \texttt{search\_multiomics\_20261008\_115430}, Windows). Eine eigene Prüfung unter Linux bestätigt das (Kapitel~\ref{chap:pruefung}).
+
+\section{Die Relation auf Mengenfolgen (\W{10})}
+
+\texttt{universal\_core} implementiert die Verallgemeinerung aus Abschnitt~\ref{sec:universal}. Die Klasse \texttt{Stack} hält $L$ Schichten aus \texttt{frozenset}-Komponenten, \texttt{contained\_independent} und \texttt{contained\_coherent} werten Satz~\ref{satz:paar} direkt aus (\texttt{linear\_pairs} gegen \texttt{cyclic\_pairs}), \texttt{compare\_stacks} liefert die Ergebnisnamen der C++-Bibliothek. Aktive Schichten können über eine Indexmenge gewählt werden (Projektion). Die Funktionen \texttt{stack\_from\_matrices} und \texttt{matrices\_from\_stack} verbinden den Kern mit Matrixstapeln.
+
+Eine Abweichung ist bewusst: \texttt{compare\_stacks} entscheidet \texttt{EQUAL\_KEEP\_*} nach der \emph{Belegung} (Summe der Komponentengrößen), die C++-Fassung nach Kantenzahl. Für Matrixstapel in lokalen Koordinaten ist die Belegung gleich der Kantenzahl, sodass beide übereinstimmen.
+
+\section{Der invertierte Paarindex (\W{11})}
+\label{sec:index}
+
+\texttt{universal\_index} (und in der Datenbank die Tabelle \texttt{universal\_pairs}) bildet die Paarmengen aller gespeicherten Stapel auf Trefferlisten ab. Zu jedem Zahlenpaar $(u,v)$ je Schicht $\ell$ und Art ($\mathrm{cyc}$ oder $\mathrm{lin}$) steht die Liste der Schlüssel; Komponenten werden über ein injektives Wörterbuch je Schicht auf Zahlen abgebildet.
+
+\begin{satz}[Korrektheit des Index]
+	\label{satz:index}
+	Sei $\mathcal{D}=\{(k,M_k)\}$ eine Datenbank von Stapeln desselben Schemas, $Q$ eine Anfrage mit $m_Q$ Spalten und $I$ eine Menge aktiver Schichten. Dann ist
+	\[
+	R_\ell(Q)=\bigcup_{(u,v)\in P_{\mathrm{lin}}(q^{(\ell)})}\mathrm{cyc}_\ell[(u,v)]\ \cap\ \{k : |M_k|\ge m_Q\},\qquad \mathrm{Match}_{\mathrm{ind}}(Q,I)=\bigcap_{\ell\in I}R_\ell(Q)
+	\]
+	genau die Menge der Schlüssel $k$ mit $Q\sqsubseteq_{\mathrm{ind}}M_k$ auf $I$. Im Modus \emph{kohärent} gilt $\mathrm{Match}_{\mathrm{coh}}(Q,I)\subseteq\mathrm{Match}_{\mathrm{ind}}(Q,I)$, und die Verifikation der Kandidaten aus $\mathrm{Match}_{\mathrm{ind}}$ mit der kohärenten Relation liefert genau $\mathrm{Match}_{\mathrm{coh}}$.
+\end{satz}
+
+\begin{proof}
+	Nach Satz~\ref{satz:paar} gilt $q^{(\ell)}\preceq m_k^{(\ell)}$ genau dann, wenn $P_{\mathrm{lin}}(q^{(\ell)})\cap P_{\mathrm{cyc}}(m_k^{(\ell)})\ne\emptyset$ und $m_Q\le|M_k|$. Ein Schlüssel $k$ steht genau dann in $\mathrm{cyc}_\ell[(u,v)]$, wenn $(u,v)\in P_{\mathrm{cyc}}(m_k^{(\ell)})$. Also ist $k\in R_\ell(Q)$ genau dann, wenn die Schicht $\ell$ die Bedingung erfüllt; der Schnitt über $\ell\in I$ ist die Konjunktion. Paare mit einer im Wörterbuch unbekannten Komponente kommen in keiner Liste vor und tragen nichts bei. Kohärent: Ein gemeinsames Paar der Tupelfolgen liefert in jeder aktiven Schicht dieselbe Position als gemeinsames Paar der Einzelschichten, also $\mathrm{Match}_{\mathrm{coh}}\subseteq\mathrm{Match}_{\mathrm{ind}}$; die Verifikation entfernt genau die Kandidaten, die nicht kohärent sind.
+\end{proof}
+
+Der Aufwand ist $O(\nu_I(Q)+|I|\,m_Q+H)$ mit der Trefferlast $H$ (Summe der gelesenen Listenlängen) und hängt nicht von der Zahl der gespeicherten Stapel ab, soweit sie nicht in Trefferlisten vorkommen. Gen-DB setzt das in \texttt{crud.search\_universal} um. Die Messung (Abschnitt~\ref{sec:messungen}) zeigt den Effekt.
+
+\section{Der Prozess-Pool (\W{12})}
+\label{sec:pool}
+
+Der Algorithmus ist CPU-gebunden; deshalb laufen die Vergleiche in einem \texttt{ProcessPoolExecutor}, damit der Webserver nicht blockiert. Die Zahl der Worker steht in \texttt{SUBGRAPH\_MAX\_WORKERS} (Standard $\max(\text{CPUs},2)$), die Chunkgröße ist $256$. Die Funktionen \texttt{compare\_many}, \texttt{compare\_many\_multiomics} und \texttt{compare\_many\_universal} verteilen eine Anfrage gegen viele Kandidaten; jeder Worker löst die Implementierung einmal auf. Der Pool kennt keine Relation, er ruft nur die jeweilige Vergleichsfunktion auf; er wäre für jeden anderen CPU-gebundenen Vergleich genauso einsetzbar. Die Indexsuche braucht den Pool nicht.
+
+\section{Experimente und Differenzialtests (\W{13})}
+\label{sec:gendb_experimente}
+
+Gen-DB enthält vier Experimentskripte (\texttt{experiment\_search\_workers}, \texttt{\_backends}, \texttt{\_multiomics}, \texttt{\_universal}), die jeweils eine Aufgabe haben: Skalierung mit Workern, Python gegen C++, Multi-Omics-Suche und Indexsuche gegen Einzelvergleiche. Gemeinsam ist ihnen, dass sie alle Fassungen aus diesem Kapitel gegeneinander prüfen: Treffer müssen gleich sein, ein stiller Fallback von C++ auf Python wird erkannt, und ein Korrektheitsteil vergleicht die Relation auf Zufallspaaren, eingebetteten, identischen und umgekehrten Paaren in beiden Modi. Das ist die systematische Absicherung der Formen Neuimplementierung und Verallgemeinerung.
+
+\section{Ablauf einer Suche: Sequenzdiagramm}
+\label{sec:sequenz}
+
+Die bisherigen Abschnitte beschreiben die Bausteine einzeln. Wie sie bei \emph{einer} Suche zusammenspielen, zeigt das UML-Sequenzdiagramm in Abbildung~\ref{abb:sequenz}. Es folgt dem Use Case \emph{Subgraph-Suche} von der Eingabe im Browser bis zur Anzeige des Suchergebnisses. Die Vorlage ist der Quelltext von Gen-DB (\texttt{frontend/index.html}, \texttt{backend/app.py}, \texttt{crud.py}, \texttt{subgraph\_executor.py}, \texttt{csubgraph\_native.py}, \texttt{native/csubgraph\_shim.cpp}); die Nachrichtennamen sind die dort verwendeten Funktions- und Routennamen.
+
+\subsection*{Beteiligte}
+
+Das Diagramm hat neun Lebenslinien aus drei Sprach- und Prozessbereichen (Tabelle~\ref{tab:sequenz_beteiligte}). Der Browser führt JavaScript aus, der Webserver und der Pool-Hauptprozess sind Python. Die Vergleiche laufen in \emph{Worker-Prozessen}, die selbst Python-Prozesse sind und entweder die C++-Bibliothek über \texttt{ctypes} aufrufen (rot umrandet) oder das Python-Paket \texttt{subgraph} (Fallback). Die Grenze zwischen Python und C++ verläuft damit \emph{innerhalb} des Worker-Prozesses: Es gibt keinen Prozessstart und keine JSON-Kodierung je Vergleich (Abschnitt~\ref{sec:gendb_wrapper}).
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.6cm}L{2.4cm}Y@{}}
+		\toprule
+		Lebenslinie & Sprache, Prozess & Rolle bei der Suche \\
+		\midrule
+		\texttt{Browser} (\texttt{index.html}) & JavaScript, Browser & liest Labels und Matrix, sendet die Anfrage, zeigt die Treffer an \\[0.3em]
+		\texttt{FastAPI} (\texttt{app.py}) & Python, Webserver & Route \texttt{POST /api/networks/search}, Validierung, Antwortschema \\[0.3em]
+		\texttt{crud} (\texttt{crud.py}) & Python, Webserver & Kandidatenauswahl, Auswertung der Vergleichsergebnisse, \texttt{SearchMatch} \\[0.3em]
+		\texttt{PostgreSQL} & SQL, Datenbankserver & Tabellen \texttt{biological\_networks} und \texttt{network\_matrices} \\[0.3em]
+		\texttt{subgraph\_executor} & Python, Webserver & \texttt{compare\_many}, Pool, einmalige Auflösung der Bibliothek \\[0.3em]
+		\texttt{Worker-Prozess} & Python, Pool-Worker & \texttt{execute\_subgraph\_comparison}, Aufruf über \texttt{ctypes} oder Python-Paket \\[0.3em]
+		\texttt{csubgraph\_shim} & C-ABI (C++), im Worker & \texttt{csub\_compare}, \texttt{.so}/\texttt{.dll} aus Wrapper und \texttt{libsubgraphlib.a} \\[0.3em]
+		\texttt{SubgraphAlgorithm} & C++17, im Worker & \texttt{compareGraphs}, Kern aus \repo{csubgraph} \\[0.3em]
+		\texttt{subgraph} (Python-Paket) & Python, im Worker & \texttt{Subgraph().compare\_graphs}, Referenz aus \repo{subgraph} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Lebenslinien des Sequenzdiagramms (Abbildung~\ref{abb:sequenz}).}
+	\label{tab:sequenz_beteiligte}
+\end{table}
+
+\begin{sidewaysfigure}
+	\centering
+	\resizebox{0.96\textheight}{!}{%
+	\begin{tikzpicture}[font=\scriptsize, >={Stealth[length=1.7mm]},
+		part/.style={draw=mainblue, fill=lightgray, rounded corners=2pt, align=center, text width=2.3cm, minimum height=1.0cm, inner sep=2pt},
+		cpp/.style={draw=accentred, very thick, fill=white, rounded corners=2pt, align=center, text width=2.3cm, minimum height=1.0cm, inner sep=2pt},
+		life/.style={dashed, draw=darkgray!70},
+		m/.style={->, thick},
+		r/.style={->, thick, dashed},
+		lab/.style={fill=white, inner sep=1pt, anchor=south west},
+		frm/.style={draw=darkgray, thin},
+		tab/.style={anchor=north west, draw=darkgray, fill=lightgray, inner sep=1.5pt}]
+		% Lebenslinien (x-Positionen in cm)
+		\def\xB{0}\def\xA{2.8}\def\xC{5.6}\def\xD{8.4}\def\xE{11.2}\def\xW{14.0}\def\xS{16.8}\def\xK{19.6}\def\xP{22.4}
+		\def\yEnd{-12.6}
+		\node[part] (pB) at (\xB,0) {\textbf{:Browser}\\\texttt{index.html}\\JavaScript};
+		\node[part] (pA) at (\xA,0) {\textbf{:FastAPI}\\\texttt{app.py}};
+		\node[part] (pC) at (\xC,0) {\textbf{:crud}\\\texttt{crud.py}};
+		\node[part] (pD) at (\xD,0) {\textbf{:PostgreSQL}\\\texttt{biological\_networks}};
+		\node[part] (pE) at (\xE,0) {\textbf{:subgraph\_executor}\\Hauptprozess};
+		\node[part] (pW) at (\xW,0) {\textbf{:Worker-Prozess}\\Python};
+		\node[cpp]  (pS) at (\xS,0) {\textbf{:csubgraph\_shim}\\C-ABI, \texttt{.so/.dll}};
+		\node[cpp]  (pK) at (\xK,0) {\textbf{:Subgraph-}\\\textbf{Algorithm}\\C++17, \texttt{.a}};
+		\node[part] (pP) at (\xP,0) {\textbf{:subgraph}\\Python-Paket};
+		\foreach \x in {\xB,\xA,\xC,\xD,\xE,\xW,\xS,\xK,\xP}{\draw[life] (\x,-0.5)--(\x,\yEnd);}
+		% Makros: Nachricht (Stil, x1, x2, Zeilenposition, Text) und Selbstnachricht
+		\newcommand{\msg}[5]{\draw[#1] (#2,{-1.3-0.55*#4})--(#3,{-1.3-0.55*#4}); \node[lab] at ({min(#2,#3)+0.08},{-1.3-0.55*#4}) {#5};}
+		\newcommand{\slf}[3]{\draw[m] (#1,{-1.3-0.55*#2})--(#1+0.4,{-1.3-0.55*#2})--(#1+0.4,{-1.3-0.55*#2-0.22})--(#1,{-1.3-0.55*#2-0.22}); \node[anchor=west, fill=white, inner sep=1pt] at ({#1+0.45},{-1.3-0.55*#2-0.11}) {#3};}
+		% Rahmen loop und alt
+		\draw[frm] (12.9,{-1.3-0.55*7.6}) rectangle (23.7,{-1.3-0.55*15.25});
+		\node[tab] at (12.9,{-1.3-0.55*7.6}) {\textbf{loop} [je Kandidat des Chunks]};
+		\draw[frm] (13.2,{-1.3-0.55*9.1}) rectangle (23.4,{-1.3-0.55*14.95});
+		\node[tab] at (13.2,{-1.3-0.55*9.1}) {\textbf{alt}};
+		\node[anchor=north west, inner sep=1.5pt] at (14.2,{-1.3-0.55*9.1}) {[\texttt{CSUBGRAPH\_LIB\_PATH} gesetzt und Bibliothek nutzbar]};
+		\draw[frm, dashed] (13.2,{-1.3-0.55*12.75}) -- (23.4,{-1.3-0.55*12.75});
+		\node[anchor=north west, inner sep=1.5pt] at (13.3,{-1.3-0.55*12.75}) {[sonst, mit Warnung im Log: Python-Fallback]};
+		% Nachrichten (Nummer = Schritt in Tabelle)
+		\slf{\xB}{0}{0: \texttt{searchSubgraph()}: Labels und Matrix lesen, Kanten prüfen}
+		\msg{m}{\xB}{\xA}{1.1}{1: \texttt{POST /api/networks/search} \{node\_labels, adjacency\_matrix\}; Pydantic: \texttt{NetworkSearch}}
+		\msg{m}{\xA}{\xC}{2.1}{2: \texttt{search\_subgraph(matrix, labels)}}
+		\msg{m}{\xC}{\xD}{3.1}{3: \texttt{SELECT} Kandidaten mit $n,e\ge$ Query}
+		\msg{r}{\xD}{\xC}{4.1}{4: Zeilen (id, Labels, Matrix)}
+		\msg{m}{\xC}{\xE}{5.1}{5: \texttt{compare\_many(query, matrices)}}
+		\slf{\xE}{6.2}{6: \texttt{get\_executor()}: einmalig \texttt{\_get\_native()} (Bibliothek bauen/laden), Pool starten}
+		\msg{m}{\xE}{\xW}{7.2}{7: \texttt{executor.map(chunksize=256)}}
+		\slf{\xW}{8.3}{8: \texttt{execute\_subgraph\_comparison(A, B)}: Matrizen prüfen}
+		\msg{m}{\xW}{\xS}{10.4}{9: \texttt{csub\_compare(a, n, b, m)} (ctypes)}
+		\msg{m}{\xS}{\xK}{11.0}{10: \texttt{compareGraphs(A, B)}}
+		\msg{r}{\xK}{\xS}{11.55}{11: \texttt{Result}}
+		\msg{r}{\xS}{\xW}{12.1}{12: Code 0..5 oder $-1$; im Worker $\to$ \texttt{keep\_A}, \texttt{keep\_B}, \texttt{keep\_both}, \texttt{equal\_keep\_*}}
+		\msg{m}{\xW}{\xP}{13.9}{13: \texttt{Subgraph().compare\_graphs(A, B)}}
+		\msg{r}{\xP}{\xW}{14.45}{14: \texttt{(decision, kept)}}
+		\msg{r}{\xW}{\xE}{15.9}{15: \texttt{(result, error)} je Kandidat}
+		\msg{r}{\xE}{\xC}{16.45}{16: Ergebnisliste in Kandidatenreihenfolge}
+		\slf{\xC}{17.0}{17: Fehler zählen; \texttt{MATCH\_RESULTS} filtern; \texttt{exact}/\texttt{subgraph}; \texttt{SearchMatch}}
+		\msg{r}{\xC}{\xA}{18.1}{18: \texttt{List[SearchMatch]}; \texttt{SearchResponse(success, data)}}
+		\msg{r}{\xA}{\xB}{18.65}{19: \texttt{200 OK}, JSON}
+		\slf{\xB}{19.2}{20: Trefferliste, Match-Typ und \texttt{subgraph\_result} anzeigen}
+	\end{tikzpicture}}
+	\caption{UML-Sequenzdiagramm der Subgraph-Suche in Gen-DB (Nummern wie in Tabelle~\ref{tab:sequenz_schritte}). Durchgezogene Pfeile sind Aufrufe, gestrichelte Rückgaben. Rot umrandet: C/C++-Code, der im Worker-Prozess über \texttt{ctypes} aufgerufen wird; alle anderen Lebenslinien sind Python (bzw.\ JavaScript und SQL).}
+	\label{abb:sequenz}
+\end{sidewaysfigure}
+
+\subsection*{Schritt für Schritt}
+
+Tabelle~\ref{tab:sequenz_schritte} ordnet jeden Schritt der Nummerierung im Diagramm einer Stelle im Quelltext zu.
+
+{\small
+\begin{longtable}{@{}L{0.9cm}L{4.6cm}L{9.3cm}@{}}
+	\caption{Schritte der Suche (Nummern wie in Abbildung~\ref{abb:sequenz}) und ihre Stellen im Quelltext.}
+	\label{tab:sequenz_schritte} \\
+	\toprule
+	Nr. & Schritt & Quelltext und Erläuterung \\
+	\midrule
+	\endfirsthead
+	\toprule
+	Nr. & Schritt & Quelltext und Erläuterung \\
+	\midrule
+	\endhead
+	0 & Eingabe prüfen & \texttt{searchSubgraph()} in \texttt{index.html}: Labels (kommagetrennt) und Matrix aus den Eingabefeldern; ohne Labels oder ohne Kante erscheint eine Meldung und es wird nichts gesendet. \\[0.3em]
+	1 & Anfrage senden, validieren & \texttt{fetch(API\_BASE + '/networks/search', POST)} mit \texttt{node\_labels} und \texttt{adjacency\_matrix} als JSON. In \texttt{app.py} prüft das Pydantic-Schema \texttt{NetworkSearch} (\texttt{schemas.py}) die Eingabe; mindestens ein Label. \\[0.3em]
+	2 & Fachlogik aufrufen & \texttt{search\_networks} ruft \texttt{crud.search\_subgraph(query\_matrix, query\_labels)}; Ausnahmen werden zu HTTP~500. \\[0.3em]
+	3--4 & Kandidaten laden & Join von \texttt{biological\_networks} und \texttt{network\_matrices} mit \texttt{node\_count >= n} und \texttt{edge\_count >= e} der Query, sortiert nach Knotenzahl. Nur gleich große oder größere Netzwerke können die Query enthalten. \\[0.3em]
+	5 & Vergleich verteilen & \texttt{compare\_many(query, [Matrix je Kandidat])}; die Query ist $A$, der Kandidat ist $B$. \\[0.3em]
+	6 & Einmalige Auflösung & \texttt{get\_executor()} löst vor dem Start der Worker \texttt{\_get\_native()} und \texttt{\_get\_native\_omics()} auf: Bibliothek suchen, Wrapper bauen, laden (Kapitel~\ref{chap:laden}). Danach startet der \texttt{ProcessPoolExecutor} (\texttt{SUBGRAPH\_MAX\_WORKERS}, in der \texttt{.env} auf $2$ gesetzt). Spätere Suchen überspringen den Schritt. \\[0.3em]
+	7 & Chunks verteilen & \texttt{executor.map(\_compare\_to\_query, \ldots, chunksize=256)}: Jeder Worker erhält Pakete von $256$ Kandidaten. \\[0.3em]
+	8 & Eingaben prüfen & \texttt{execute\_subgraph\_comparison}: beide Matrizen als \texttt{numpy}-Arrays, nichtleer und quadratisch; Fehler werden als Text zurückgegeben, nicht geworfen. \\[0.3em]
+	9--12 & Weg über C++ & Fall \emph{alt, erster Zweig}: \texttt{NativeSubgraph.compare} übergibt die Matrizen zeilenweise als \texttt{int}-Felder per \texttt{ctypes} an \texttt{csub\_compare} (\texttt{csubgraph\_shim.cpp}). Der Wrapper baut \texttt{std::vector<std::vector<int>>}, ruft \texttt{SubgraphAlgorithm::compareGraphs} und liefert den Code $0$ bis $5$, bei Fehlern $-1$ mit Text im $512$-Byte-Puffer. Zurück im Worker übersetzt \texttt{\_compare\_with\_csubgraph} den Code in die Namen des Python-Algorithmus (\texttt{\_CSUBGRAPH\_RESULTS}); \texttt{IDENTICAL} wird nach Kantenzahl zu \texttt{equal\_keep\_A} oder \texttt{equal\_keep\_B}. \\[0.3em]
+	13--14 & Weg über Python & Fall \emph{alt, zweiter Zweig}: \texttt{\_compare\_with\_python} erzeugt je Prozess einmal \texttt{Subgraph()} und ruft \texttt{compare\_graphs}. Dieser Weg gilt, wenn \texttt{CSUBGRAPH\_LIB\_PATH} leer ist oder die Bibliothek nicht nutzbar ist (Warnung im Log). \\[0.3em]
+	15--16 & Ergebnisse sammeln & Jeder Aufruf liefert \texttt{(result, error)}; \texttt{executor.map} gibt die Liste in der Reihenfolge der Kandidaten zurück. \\[0.3em]
+	17 & Treffer bestimmen & \texttt{crud.search\_subgraph}: Fehlerfälle werden gezählt und übersprungen (ein defekter Kandidat bricht die Suche nicht ab). Treffer sind \texttt{keep\_B}, \texttt{equal\_keep\_A} und \texttt{equal\_keep\_B} (\texttt{MATCH\_RESULTS}); \texttt{equal\_*} ergibt den Match-Typ \texttt{exact}, sonst \texttt{subgraph}. \\[0.3em]
+	18--19 & Antwort & \texttt{search\_match\_to\_response} je Treffer, \texttt{SearchResponse(success=True, data=\ldots)}, HTTP~200 mit JSON. \\[0.3em]
+	20 & Anzeige & Der Browser zeigt Name, Typ, Organismus, Match-Typ, Knoten- und Kantenzahl, Labels und \texttt{subgraph\_result}; bei leerer Liste \glqq Keine Übereinstimmungen gefunden\grqq. \\
+	\bottomrule
+\end{longtable}
+}
+
+\subsection*{Was das Diagramm über das Zusammenspiel zeigt}
+
+\begin{enumerate}
+	\item \textbf{Drei Sprachbereiche, zwei Prozessgrenzen.} Die Anfrage überquert die Netzgrenze (Browser$\to$Webserver), die Prozessgrenze zum Pool (Schritt~7, \texttt{pickle}-Übertragung der Matrizen) und die Sprachgrenze Python$\to$C++ (Schritt~9, Funktionsaufruf im selben Prozess). Nur die letzte ist billig; sie kostet nach der eigenen Messung etwa $0{,}018$\,ms (Tabelle~\ref{tab:gendb_messung}).
+	\item \textbf{Der Algorithmus ist austauschbar, die Suche nicht.} Die Schritte 0 bis 8 und 15 bis 20 sind für beide Zweige gleich. Nur der \texttt{alt}-Rahmen (Schritte 9 bis 14) enthält Algorithmus-Code. Deshalb ist die Fachlogik (Kandidatenauswahl, Treffer, Antwort) von der Wahl zwischen \W{6} und \W{7} unabhängig (Kapitel~\ref{chap:vergleich}).
+	\item \textbf{Die Auswahl fällt einmal, nicht je Vergleich.} Schritt~6 trifft die Entscheidung zwischen C++ und Python je Prozess einmal; im Worker kostet die Abfrage nur eine Variable. Wo der Ladevorgang im Einzelnen abläuft, beschreibt Kapitel~\ref{chap:laden}.
+	\item \textbf{Fehler laufen als Werte, nicht als Ausnahmen.} Vom Wrapper bis \texttt{crud} werden Fehler als \texttt{(None, Text)} weitergereicht; nur ein Fehler außerhalb der Vergleiche (Datenbank, Validierung) führt zu HTTP~500.
+	\item \textbf{Die Reihenfolge bleibt erhalten.} Weil \texttt{executor.map} die Reihenfolge der Kandidaten bewahrt, genügt in Schritt~17 ein \texttt{zip(candidates, outcomes)}.
+\end{enumerate}
+
+Die Multi-Omics-Suche (\texttt{POST /api/multiomics/search}) und die universelle Suche folgen demselben Ablauf mit anderen Funktionsnamen (\texttt{compare\_many\_multiomics}, zweiter Wrapper \texttt{csubgraph\_omics\_shim}); die Indexsuche (\W{11}) ersetzt die Schritte 5 bis 16 durch Listenzugriffe in der Datenbank und braucht weder Pool noch Bibliothek (Abschnitt~\ref{sec:index}).
+
+\section{Messungen aus Gen-DBs eigenen Dateien}
+\label{sec:messungen}
+
+Die folgenden Werte stammen aus den Messdateien im Gen-DB-Repository (Windows~11, Python~3.14, vier logische CPUs). Sie wurden \emph{nicht} neu gemessen.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}Yrrr@{}}
+		\toprule
+		Größe & Python (\W{6}) & C++ (\W{7}) & Verhältnis \\
+		\midrule
+		Gesamtzeit, 6 Anfragen, 2 Worker & $1180{,}3$\,s & $185{,}6$\,s & $6{,}36$ \\
+		Kandidaten insgesamt & \multicolumn{2}{c}{$931\,899$ (beide)} & -- \\
+		Zeit je Kandidat (Gesamtzeit/Kandidaten) & $1{,}27$\,ms & $0{,}20$\,ms & -- \\
+		Anteil der Vergleichsphase an der Gesamtzeit & $88{,}4\,\%$ & $33{,}3\,\%$ & -- \\
+		Mikro-Benchmark je Einzelvergleich (Mittel) & $2{,}69$\,ms & $0{,}074$\,ms & $\approx 37$ \\
+		Aufrufkosten der Brücke (Mittel) & -- & $0{,}018$\,ms & -- \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Python gegen C++ in Gen-DB (\texttt{search\_backends\_20261007\_104804}). Beide Implementierungen lieferten dieselben Treffer, ohne fehlgeschlagene Vergleiche.}
+	\label{tab:gendb_messung}
+\end{table}
+
+Der Gesamtgewinn ($6{,}36$) ist deutlich kleiner als der Gewinn je Einzelvergleich ($\approx 37$), weil mit der C++-Fassung der serielle Anteil der Suche (Datenbankabfrage, Prozesskommunikation, Trefferliste) $66{,}7\,\%$ der Zeit ausmacht: Der Rechenkern ist nicht mehr der Engpass. Das ist eine Aussage über die \emph{Kopplung}, nicht über den Algorithmus.
+
+Die Indexsuche (\W{11}) vermeidet die Vergleiche ganz: In der Messreihe \texttt{search\_universal\_20261010\_103804} (Windows, $112$ Anfragen je Variante) betrug die Median-Zeit je Anfrage $0{,}107$\,s für den Index gegenüber $12{,}3$\,s für Einzelvergleiche in Python ($\approx115$-fach), die Summe $21{,}0$\,s gegenüber $1689{,}1$\,s ($\approx 80$-fach). Die Trefferlisten waren in allen $112$ Fällen gleich (Hash der Trefferlisten), der Korrektheitsteil mit $5\,000$ Paaren meldete keinen Verstoß.
+
+\chapter{Der Subgraph-SAT-Solver}
+\label{chap:solver}
+
+Der Solver ist die mathematisch präziseste Nutzung. Er braucht kein Signaturverfahren, sondern ein Orakel nach Definition~\ref{def:orakel} und benutzt deshalb \texttt{ExactSubgraph} (\W{14}); den Signaturalgorithmus kennt er nur als Diagnosepfad (\W{15}). Er enthält keinen Subgraph Algorithmus: In den Dateien \texttt{Cnf}, \texttt{Reduction}, \texttt{SubgraphSATSolver} und \texttt{main} kommen weder \texttt{SubgraphAlgorithm} noch \texttt{ExactSubgraph} vor, und \texttt{CMakeLists.txt} bindet \texttt{csubgraph} nicht ein.
+
+\section{Die Reduktionskette}
+\label{sec:solver_kette}
+
+Der Solver führt \texttt{CNF $\to$ 3-SAT $\to$ Clique $\to$ Subgraph} aus.
+
+\begin{enumerate}
+	\item \texttt{CNFFormula::to\_3sat} teilt Klauseln mit mehr als drei Literalen: Aus $(r_0\vee r_1\vee\cdots)$ entsteht $(r_0\vee r_1\vee x)$ und die Restklausel $(r_2\vee\cdots\vee\neg x)$, mit frischer Variable $x$, iterativ. Danach entfernt \texttt{simplify} Tautologien und doppelte Klauseln.
+	\item \texttt{ThreeSATToCliqueReducer} baut $G_\varphi$ nach Satz~\ref{satz:sat_clique}; Knoten sind die Paare (Klausel, Position) in Klausel-vor-Position-Reihenfolge, Kanten verbinden Knoten verschiedener Klauseln mit nicht komplementären Literalen.
+	\item \texttt{CliqueToSubgraphReducer} liefert das Muster $K_m$ ($m$ = Klauselzahl).
+	\item Beide Graphen werden als JSON geschrieben (Quelle $G$, Ziel $H=K_m$).
+\end{enumerate}
+
+\begin{lemma}[Klauselteilung]
+	\label{lem:teilung}
+	Sei $\varphi'$ aus $\varphi$ durch \texttt{to\_3sat} entstanden. Erfüllt eine Belegung $\alpha$ die Formel $\varphi'$, so erfüllt $\alpha$ (eingeschränkt auf die ursprünglichen Variablen) auch $\varphi$.
+\end{lemma}
+
+\begin{proof}
+	Sei $C=(r_1\vee\cdots\vee r_k)$ mit $k>3$ in $\varphi$ in die Klauseln $c_1,\ldots,c_{k-2}$ geteilt worden, wobei $c_i$ für $i<k-2$ die Form $(u_i\vee v_i\vee x_i)$ hat und $c_{k-2}$ aus den übrig gebliebenen Literalen besteht; jedes $u_i,v_i$ ist ein ursprüngliches Literal von $C$ oder ein $\neg x_j$ mit $j<i$. Angenommen, alle $r_j$ wären unter $\alpha$ falsch, aber alle $c_i$ wahr. Per Induktion über $i$ folgt $x_i$ wahr: Die Literale $u_i,v_i$ sind falsch (ursprünglich falsch, oder $\neg x_j$ mit $x_j$ wahr nach Induktionsannahme), also muss $x_i$ wahr sein. Die letzte Klausel $c_{k-2}$ enthält dann nur falsche Literale (ursprüngliche oder $\neg x_j$ mit wahrem $x_j$). Widerspruch. Also ist jede ursprüngliche Klausel erfüllt. Die übrigen Klauseln bleiben unverändert.
+\end{proof}
+
+Die umgekehrte Richtung (jede erfüllende Belegung von $\varphi$ lässt sich auf die frischen Variablen fortsetzen) wird für die Korrektheit der Ablehnung gebraucht und gilt ebenfalls: Ist $C$ durch $\alpha$ erfüllt, etwa durch $r_t$, setzt man $x_i$ wahr genau für die Klauseln $c_i$, die vor der Position von $r_t$ liegen und nicht schon durch ihre Literale erfüllt sind; auf die Angabe des vollen Beweises wird verzichtet (die 300 Zufallsformeln der Prüfung in Kapitel~\ref{chap:pruefung} sind damit konsistent).
+
+\section{Dateiprotokoll und Adapter}
+\label{sec:solver_protokoll}
+
+Der Solver schreibt \texttt{input.json} mit den Schlüsseln \texttt{G} und \texttt{H} (je \texttt{nodes} und \texttt{edges}), startet das Programm aus \texttt{--subgraph-binary} (Linux: \texttt{fork}/\texttt{execl}, Windows: \texttt{system}) mit zwei Dateinamen und liest \texttt{output.json}. Rückgabecode $\ne 0$ ergibt den Status \texttt{SAT\_ERROR}; ein Zeitlimit des Adapters (Exit-Code $3$) wird also \emph{nicht} als \texttt{UNSAT} gemeldet. Die Antwort wird nicht mit einem JSON-Parser, sondern durch Textsuche nach \texttt{"is\_subgraph": true} und \texttt{"mapping"} ausgewertet. Dazu muss der Adapter diese Schreibweise (ein Leerzeichen nach dem Doppelpunkt) einhalten (Abschnitt~\ref{sec:adapter}).
+
+Bemerkenswert ist, dass der Solver kein \texttt{nlohmann/json} einbindet, obwohl \texttt{CMakeLists.txt} es anfordert und notfalls herunterlädt; die Abhängigkeit ist überflüssig.
+
+\section{Belegungsextraktion und Korrektheit (\W{16})}
+\label{sec:solver_extraktion}
+
+Bei \emph{ja} liefert der Adapter ein \texttt{mapping}: Für jeden Knoten von $K_m$ den Index des Bildknotens in $G_\varphi$. Die Knoten sind in der Reihenfolge Klausel vor Position nummeriert; der Solver baut dieselbe Nummerierung aus der geteilten, vereinfachten Formel neu auf.
+
+\begin{satz}[Korrektheit der Belegungsextraktion]
+	\label{satz:extraktion}
+	Sei $\varphi''$ die Formel nach \texttt{to\_3sat} und \texttt{simplify} mit $m\ge1$ Klauseln und $\iota:K_m\to G_{\varphi''}$ eine Einbettung. Setzt man für jeden Bildknoten $\iota(v)=(c,p)$ die Variable von $\lambda(c,p)$ so, dass das Literal wahr wird, und alle übrigen Variablen beliebig (der Code: wahr), so ist die Belegung wohldefiniert und erfüllt $\varphi''$. Ihre Einschränkung auf die ursprünglichen Variablen erfüllt die ursprüngliche Formel.
+\end{satz}
+
+\begin{proof}
+	Die $m$ Bildknoten sind paarweise benachbart, liegen also in paarweise verschiedenen Klauseln. Bei $m$ Klauseln enthält jede Klausel genau einen Bildknoten. Zwei Bildknoten tragen keine komplementären Literale, also ist keine Variable auf zwei verschiedene Werte gesetzt (wohldefiniert; die Regel „erste Zuweisung gilt“ im Code wird dadurch folgenlos). Jede Klausel enthält ein wahr gesetztes Literal, also ist $\varphi''$ erfüllt. Da \texttt{simplify} nur Tautologien und Duplikate entfernt, erfüllt die Belegung auch $\varphi'$ (die entfernten Klauseln sind entweder immer wahr oder gleich einer behaltenen), nach Lemma~\ref{lem:teilung} also die ursprüngliche Formel.
+\end{proof}
+
+Der Solver prüft die Belegung zusätzlich (\texttt{validate\_result}, Standard an) und meldet bei Fehlschlag \texttt{SAT\_ERROR} statt \texttt{SATISFIABLE}. Damit ist ein falsches \texttt{SAT} ausgeschlossen, selbst wenn das Orakel oder die Extraktion fehlerhaft wären. Fehlt das \texttt{mapping} (etwa im Signaturmodus), bleibt es bei der Belegung „alle Variablen wahr“; diese Belegung wird ebenfalls geprüft.
+
+\section{Ein durchgerechnetes Beispiel}
+\label{sec:solver_beispiel}
+
+Die Formel $\varphi=(x_1\vee x_2)\wedge(\neg x_1\vee x_3)\wedge(\neg x_2\vee\neg x_3)$ steht als DIMACS-Datei vor.
+
+\begin{lstlisting}[caption={Eingabe \texttt{f1.cnf}}, label={lst:beispiel_cnf}]
+p cnf 3 3
+1 2 0
+-1 3 0
+-2 -3 0
+\end{lstlisting}
+
+\paragraph{Reduktion.} Die Formel ist schon 3-SAT, $m=3$. Die sechs Knoten sind (Klausel, Position) mit Literalen: $v_0{:}\,x_1$, $v_1{:}\,x_2$ (Klausel~1), $v_2{:}\,\neg x_1$, $v_3{:}\,x_3$ (Klausel~2), $v_4{:}\,\neg x_2$, $v_5{:}\,\neg x_3$ (Klausel~3). Kanten verbinden Knoten verschiedener Klauseln mit nicht komplementären Literalen: $v_0v_3$, $v_0v_4$, $v_0v_5$, $v_1v_2$, $v_1v_3$, $v_1v_5$, $v_2v_4$, $v_2v_5$, $v_3v_4$. Das sind $9$ Kanten (die Ausgabe des Reducers nennt „6 vertices, 9 edges“). Gesucht ist $K_3\sqsubseteq_{\mathrm{mono}}G_\varphi$.
+
+\paragraph{Orakel.} Der Adapter erhält diese beiden Graphen (Datei \texttt{in.json}) und liefert im exakten Modus:
+
+\begin{lstlisting}[language=JSON, caption={Ausgabe des Adapters im Modus \texttt{exact} (echter Lauf)}, label={lst:beispiel_out}]
+{"is_subgraph": true, "mapping": [0, 3, 4]}
+\end{lstlisting}
+
+Die Bildknoten $v_0,v_3,v_4$ sind paarweise benachbart ($v_0v_3$, $v_0v_4$, $v_3v_4$) und bilden die Clique.
+
+\paragraph{Extraktion.} $v_0$ hat das Literal $x_1$, also $x_1=$ wahr; $v_3$ hat $x_3$, also $x_3=$ wahr; $v_4$ hat $\neg x_2$, also $x_2=$ falsch. Der Solver meldet \texttt{SATISFIABLE} mit $\{x_1{=}T, x_2{=}F, x_3{=}T\}$. Probe: $(T\vee F)$, $(F\vee T)$, $(T\vee F)$ sind wahr.
+
+\paragraph{Der Signaturmodus am selben Beispiel.} Mit \texttt{SUBGRAPH\_MODE=heuristic} liefert derselbe Adapter für dieselbe Eingabe \texttt{\{"is\_subgraph": false\}}. Der Solver würde \texttt{UNSATISFIABLE} melden, obwohl die Formel erfüllbar ist: eine konkrete Folge der Unvollständigkeit aus Beispiel~\ref{bsp:k3k2}.
+
+\paragraph{Unerfüllbares Gegenstück.} Für $(x_1)\wedge(\neg x_1)$ entsteht ein Graph mit zwei Knoten ohne Kante; $K_2$ ist nicht enthalten, der Solver meldet \texttt{UNSATISFIABLE}.
+
+\section{Der Signaturmodus als Diagnosepfad (\W{15}) und Grenzen}
+\label{sec:solver_grenzen}
+
+Der Signaturmodus ist unvollständig im Sinne von Definition~\ref{def:orakel}: Bei $300$ zufälligen CNF-Formeln lieferte der Modus \texttt{heuristic} in $130$ Fällen \texttt{UNSAT} für erfüllbare Formeln und endete in $5$ Fällen mit einem Fehlerstatus (Kapitel~\ref{chap:pruefung}); die Ursache der fünf Fehler ist nicht untersucht. Der Modus \texttt{exact} lieferte dagegen in allen $300$ Fällen die richtige Antwort und nie eine ungültige Belegung. Der Signaturmodus hat außerdem die Grenze von $63$ Knoten, die bei Reduktionsgraphen schnell überschritten wird.
+
+Der exakte Modus ist im ungünstigsten Fall exponentiell. Der Kommentar im Solver-Header, der von „polynomieller Zeit“ und $O(n^3)$ spricht, trifft nur auf den Signaturmodus zu und ist für den exakten Modus falsch. Das Zeitlimit des Solvers (\texttt{subgraph\_timeout\_sec}, \texttt{--timeout}) wird nicht an den Adapter weitergereicht; dieser verwendet \texttt{SUBGRAPH\_TIMEOUT\_SEC} mit Standard $60$ Sekunden.
+
+\chapter{Das Experimente-Framework}
+\label{chap:experimente}
+
+Das Experimente-Framework (\W{17}) ist das Projekt \repo{subgraph-sat-solver-experiments}. Es erzeugt Boolean Circuits, übersetzt sie in CNF, startet den Subgraph-SAT-Solver als Prozess, misst die Laufzeit und legt die Ergebnisse als JSON, CSV und Diagramme ab. Dieses Kapitel beschreibt die Experimente ausführlich: ihren Aufbau, die Instanzen, die Messmethodik, alle Ergebnisse beider Messreihen und ihre Grenzen.
+
+Als Quelle dient die eigene wissenschaftliche Arbeit des Projekts, \emph{Experimentelle Analyse: Subgraph-SAT-Solver auf Boolean Circuits} (\texttt{science/subgraph-sat-solver-experiments.tex}). Alle Zahlen dieses Kapitels sind dieser Arbeit entnommen; sie wurden \emph{nicht} neu gemessen, und der Quelltext des Frameworks wurde im Rahmen der vorliegenden Arbeit weder neu ausgeführt noch geprüft (vgl.\ die Aussagearten in Abschnitt~\ref{sec:einleitung_aussagen}). Ausgenommen sind die wenigen Rechnungen, die ausdrücklich als solche gekennzeichnet sind.
+
+Für die Wiederverwendungskette ist das Framework das letzte Glied: Es benutzt weder den Subgraph Algorithmus noch die Bibliothek \texttt{csubgraph}, sondern nur die Außenfläche des Solvers (Abschnitt~\ref{sec:exp_kopplung}). Was die Messungen über den Algorithmus aussagen und was nicht, ist deshalb eine eigene Frage, die Abschnitt~\ref{sec:exp_bedeutung} beantwortet.
+
+\section{Gegenstand und die beiden Messreihen}
+\label{sec:exp_gegenstand}
+
+Der Subgraph-SAT-Solver reduziert eine CNF-Formel in drei Schritten auf ein Subgraph-Problem (Abschnitt~\ref{sec:solver_kette}). Die Experimente sollen zeigen, wie sich dieser Solver auf wachsenden Instanzen verhält. Die Instanzen sind Boolean Circuits, die durch die Tseitin-Transformation \cite{tseitin1968} in CNF übersetzt werden; die Target-AND-Circuits gehen auf die Masterarbeit des Autors \cite{epp2013} zurück.
+
+Abbildung~\ref{abb:exp_pipeline} zeigt den Weg einer Instanz durch das Framework. Nur die Mitte (der Solver-Prozess) gehört nicht zum Framework; sein Inneres, die Reduktionskette und der Adapter aus Kapitel~\ref{chap:solver}, ist für das Framework unsichtbar.
+
+\begin{figure}[!ht]
+	\centering
+	\resizebox{0.97\textwidth}{!}{%
+		\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+			s/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=2.7cm, minimum height=1.6cm, inner sep=3pt},
+			ex/.style={draw=accentred, very thick, rounded corners=2pt, fill=white, align=center, text width=2.7cm, minimum height=1.6cm, inner sep=3pt},
+			l/.style={font=\scriptsize, text=darkgray, align=center}]
+			\node[s] (a) at (0,0)    {\textbf{Generator}\\Circuit (Gates)};
+			\node[s] (b) at (3.5,0)  {\textbf{Kodierung}\\Tseitin, DIMACS-Datei};
+			\node[ex] (c) at (7.0,0)  {\textbf{Solver-Prozess}\\Außenfläche, Exit-Code};
+			\node[s] (d) at (10.5,0) {\textbf{Auswertung}\\Status, Zeit, Median};
+			\node[s] (e) at (14.0,0) {\textbf{Ablage}\\JSON, CSV, Diagramme};
+			\draw[->] (a)--(b); \draw[->] (b)--(c); \draw[->] (c)--(d); \draw[->] (d)--(e);
+			\node[l] at (7.0,-1.55) {unsichtbar für das Framework:\\Reduktion, Adapter, \texttt{SUBGRAPH\_MODE}};
+		\end{tikzpicture}%
+	}
+	\caption{Weg einer Instanz durch das Experimente-Framework. Der Solver-Prozess ist die einzige Kopplung (\W{17}).}
+	\label{abb:exp_pipeline}
+\end{figure}
+
+Es gibt zwei Messreihen, die sich in Messaufbau, Instanzen und Auswertung unterscheiden (Tabelle~\ref{tab:exp_reihen}). Die \emph{erste Messreihe} vom 14.\,Juli 2026 umfasst $288$ Läufe in vier Suites. Die \emph{neue Version} (Version~2.0.0 des Frameworks) wurde am 11.\,Oktober 2026 ausgeführt und setzt die sieben Verbesserungsvorschläge aus der Diskussion der ersten Messreihe um. Sie liegt nur als Zwischenstand des Full-Presets vor.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.3cm}YY@{}}
+		\toprule
+		& Erste Messreihe & Neue Version 2.0.0 \\
+		\midrule
+		Datum & 14.\,Juli 2026, 09:40:03 bis 09:40:48 Uhr & 11.\,Oktober 2026 \\
+		Umfang & $288$ Läufe in vier Suites (Quick, Standard, Full, Performance) & Full-Preset mit $46$ Instanzen, ausgewertet $44$ (Zwischenstand) \\
+		Solver & Subgraph-SAT-Solver & Subgraph-SAT-Solver und Python-Referenzsolver \\
+		Zweck & Laufzeit über Instanzgröße (F1 bis F4) & dieselben Fragen, mit behobenen Mängeln \\
+		Befund & Messwerte von Prozessstart und Zeitauflösung dominiert & Laufzeit wächst deutlich mit der Instanzgröße \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die beiden Messreihen des Experimente-Frameworks im Überblick.}
+	\label{tab:exp_reihen}
+\end{table}
+
+Die Zahlen beider Reihen dürfen nicht ohne Weiteres verglichen werden: Die Formeln tragen zwar dieselben Namen (etwa \texttt{c17} oder \texttt{TargetAND\_m10}), sind aber wegen der korrigierten Kodierung und der Ausgangsbedingung \emph{andere} Formeln, und die Umgebung der ersten Reihe wurde nicht dokumentiert. Verglichen werden können nur qualitative Befunde (Abschnitt~\ref{sec:exp_vergleich_reihen}).
+
+\subsection{Fragestellungen}
+
+Die Experimente sollen vier Fragen beantworten.
+
+\begin{enumerate}[label=\textbf{F\arabic*}]
+	\item Wie verhält sich die Laufzeit des Solvers bei wachsender Zahl $m$ der Eingänge (Target-AND-Circuits)?
+	\item Wie verhält sie sich bei wachsender Tiefe $d$ zufälliger Zwischenschichten (Target-AND-Random)?
+	\item Wie verhält sich der Solver auf industriellen Standard-Benchmarks (ISCAS'85)?
+	\item Wie reproduzierbar sind die Messungen über verschiedene Suites hinweg?
+\end{enumerate}
+
+\section{Kopplung an den Solver (\W{17})}
+\label{sec:exp_kopplung}
+
+Das Framework startet den Solver als eigenen Prozess (\texttt{subprocess}), übergibt die DIMACS-Datei als letztes Argument und wertet Standardausgabe, Fehlerausgabe und Rückgabecode aus. Es kennt weder die Theorie noch die Bibliothek; es sieht nur die Außenfläche des Solvers. Tabelle~\ref{tab:exp_flaeche} stellt zusammen, was über diese Fläche läuft.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.4cm}Y@{}}
+		\toprule
+		Größe & Inhalt \\
+		\midrule
+		Eingabe & DIMACS-CNF-Datei (letztes Argument), zusätzlich der Pfad des Solvers (\texttt{--solver-path}) \\
+		Rückgabecode & $10$: \texttt{SAT}, $20$: \texttt{UNSAT}; $0$ ohne erkennbares Ergebnis; jeder andere Wert ergibt \texttt{ERROR} \\
+		Ausgabe & Zeile \texttt{Status:} des Subgraph-SAT-Solvers oder \texttt{s}-Zeile im Format der SAT-Competition (\texttt{s SATISFIABLE}) \\
+		Beobachtete Status & \texttt{SAT}, \texttt{UNSAT}, \texttt{TIMEOUT}, \texttt{ERROR}, \texttt{NO\_OUTPUT} \\
+		Zeitlimit & erste Reihe $30$\,s, neue Version $60$\,s (ein Timer-Thread beendet den Prozess) \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Außenfläche des Solvers aus Sicht des Frameworks.}
+	\label{tab:exp_flaeche}
+\end{table}
+
+Die Statusbestimmung der neuen Version ist für die Kette wichtig, weil sie genau die Verwechslung vermeidet, die Befund B2 (Kapitel~\ref{chap:befunde}) beschreibt. Der Subgraph-SAT-Solver endet mit dem Code $20$ auch bei \texttt{UNKNOWN} und bei Fehlern. Das Framework entscheidet deshalb in dieser Reihenfolge: zuerst eine \texttt{s}-Zeile im Format der SAT-Competition, dann die Zeile \texttt{Status:} des Solvers, dann eine alleinstehende Ergebniszeile und zuletzt den Rückgabecode. Die Zeile \texttt{Status:} hat damit Vorrang vor dem Code. Ein Rückgabecode außerhalb von $\{0,10,20\}$ ergibt immer \texttt{ERROR}; ein Lauf ohne erkennbares Ergebnis und mit dem Code $0$ ergibt \texttt{NO\_OUTPUT}. Die erste Messreihe suchte dagegen frei nach der Zeichenkette \texttt{SAT} in Standard- und Fehlerausgabe und wertete \texttt{UNSAT} als Gegenteil; das traf auch auf Banner-Zeilen zu und lieferte, wie Abschnitt~\ref{sec:exp_erste_ausgabe} zeigt, in keinem Lauf ein Ergebnis.
+
+\paragraph{Folgen der schmalen Kopplung.} Weil das Framework nur die Außenfläche sieht, kann es Zustände nicht unterscheiden, die der Solver gleich meldet. Ein Zeitlimit im Adapter erscheint dem Framework als Fehler des Solvers (Abschnitt~\ref{sec:solver_protokoll}); ein leeres \texttt{stdout} ist kein Hinweis auf Erfüllbarkeit. Welches Subgraph-Programm der Solver benutzt und in welchem Modus (\texttt{SUBGRAPH\_MODE}, Tabelle~\ref{tab:adapter_env}), geht aus der Arbeit des Frameworks nicht hervor; ebenso wenig die Version des Solvers (Abschnitt~\ref{sec:exp_daten}). Ein Lauf im Modus \texttt{heuristic} misst aber einen anderen Algorithmus als ein Lauf im Modus \texttt{exact}. Das ist die Begründung für den Ausblick, Modus, Zeitlimits und Versionsstände in jede Messreihe aufzunehmen (Kapitel~\ref{chap:ausblick}).
+
+Die Kopplung hat auch eine Stärke: Das Framework lässt sich ohne Änderung auf jeden Solver richten, der das Aufrufprotokoll einhält. Die neue Version nutzt das, indem sie einen zweiten Solver auf denselben Dateien misst (Abschnitt~\ref{sec:exp_loeser}).
+
+\section{Die Instanzen}
+\label{sec:exp_instanzen}
+
+\begin{definition}[Boolean Circuit]
+	Ein Boolean Circuit mit $m$ Eingängen ist eine geordnete Liste von Gates $g_1,\ldots,g_k$. Jedes Gate hat einen Typ aus $\{\mathrm{NOT},\mathrm{AND},\mathrm{OR},\mathrm{NAND},\mathrm{NOR},\mathrm{XOR}\}$ und bezieht seine Eingaben von Eingängen oder von früheren Gates. Die \emph{Größe} des Circuits ist die Gate-Anzahl $k$.
+\end{definition}
+
+Die Übersetzung in CNF folgt der Tseitin-Transformation: Jedes Gate erhält eine eigene Variable $y$, und lokale Klauseln erzwingen $y\leftrightarrow\mathrm{op}(x_1,\ldots)$. Die Formelgröße wächst dadurch linear in der Gate-Anzahl. Tabelle~\ref{tab:exp_familien} zeigt die fünf Instanzfamilien; die Abschnitte danach beschreiben sie einzeln.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.3cm}L{3.0cm}YL{2.6cm}@{}}
+		\toprule
+		Familie & Parameter & Eigenschaft & Reihe \\
+		\midrule
+		Target-AND & $m=4,6,\ldots,20$ & nur NOT und AND, eindeutige erfüllende Belegung & beide \\
+		Target-AND-Random & $m=10$, $d=1,\ldots,12$ & zufällige Zwischenschichten, fester Seed $42$ & beide \\
+		ISCAS'85 & $12$ Circuits, $4$ bis $3\,512$ Gates & industrielle Standard-Schaltkreise & beide \\
+		Miter & $9$ Instanzen & unerfüllbar & nur neue Version \\
+		Skalierung & $m=100$ bis $50\,000$ & Target-AND mit sehr vielen Eingängen & nur neue Version \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Instanzfamilien der Experimente.}
+	\label{tab:exp_familien}
+\end{table}
+
+\subsection{Target-AND}
+
+Ein Target-AND-Circuit mit $m$ Eingängen $x_0,\ldots,x_{m-1}$ ist so gebaut, dass sein Ausgang nur unter genau einer Belegung $a^\ast$ wahr wird. Diese Belegung bestimmt die Halbierungsstrategie des LBV-Verfahrens \cite{epp2013}: Ausgehend von der Nullbelegung werden in jeder Runde $r=1,2,\ldots$ die ersten $\lfloor m/2^r\rfloor$ Eingänge invertiert, bis die Blockgröße $0$ erreicht ist. Der Circuit besteht aus einem NOT-Gate je Eingang und einem balancierten Binärbaum aus AND-Gates über die Literale von $a^\ast$. Die im Datensatz gespeicherte Zahl der LBV-Runden ist $\lfloor\log_2 m\rfloor+1$.
+
+\begin{satz}[Größe der Target-AND-Formeln]
+	\label{satz:exp_groesse}
+	Ein Target-AND-Circuit mit $m\ge2$ Eingängen hat genau $2m-1$ Gates. Seine Tseitin-CNF der ersten Messreihe hat $6m-4$ Klauseln. Die Formel der neuen Version mit Ausgangsbedingung hat $3m-1$ Variablen, $5m-2$ Klauseln und $11m-6$ Literalvorkommen.
+\end{satz}
+
+\begin{proof}
+	Es gibt $m$ NOT-Gates. Ein Binärbaum mit $m$ Blättern hat unabhängig von $m$ genau $m-1$ innere Knoten, jeder ein AND-Gate; das ergibt $m+(m-1)=2m-1$ Gates. In der ersten Reihe erzeugt ein NOT-Gate $2$ und ein AND-Gate mit zwei Eingängen $4$ Klauseln, zusammen $2m+4(m-1)=6m-4$. In der neuen Version entfällt die redundante Klausel $(\neg y\vee x_1\vee x_2)$, ein AND-Gate erzeugt also $3$ Klauseln mit zusammen $2+2+3=7$ Literalen; ein NOT-Gate erzeugt $2$ Klauseln mit $4$ Literalen. Hinzu kommt die Unit-Klausel des Ausgangs. Das ergibt $2m+3(m-1)+1=5m-2$ Klauseln und $4m+7(m-1)+1=11m-6$ Literale. Die Variablen sind die $m$ Eingänge und die $2m-1$ Gates, also $3m-1$.
+\end{proof}
+
+Die Messdaten bestätigen den Satz: $m=20$ ergibt $39$ Gates und $116$ Klauseln in der ersten Reihe sowie $98$ Klauseln und $214$ Literale in der neuen Version; $m=100$ ergibt $498$ Klauseln und $1\,094$ Literale, $m=1000$ ergibt $4\,998$ und $10\,994$.
+
+\subsection{Target-AND-Random}
+
+Dieser Typ erweitert den Target-AND-Circuit mit $m=10$ um $d\in\{1,\ldots,12\}$ zufällige Zwischenschichten. Jede Schicht enthält $\max(2,\lfloor|L|/2\rfloor+r)$ Gates mit gleichverteiltem $r\in\{0,1,2\}$, wobei $|L|$ die Größe der vorherigen Schicht ist. Jedes Gate hat einen zufälligen Typ aus $\{\mathrm{AND},\mathrm{OR},\mathrm{NAND},\mathrm{NOR},\mathrm{XOR}\}$ und zwei oder drei zufällig gewählte Eingänge der vorherigen Schicht. Ein abschließendes AND-Gate verknüpft das Target-AND mit dem ersten Gate der letzten Zufallsschicht. Der Zufallsgenerator wird in jedem Circuit mit dem festen Seed $42$ initialisiert; die Circuits sind deshalb deterministisch, und der Circuit der Tiefe $d+1$ ergänzt den der Tiefe $d$ (bis auf das abschließende AND-Gate) um eine Schicht. Folglich ist die Streuung der Läufe innerhalb einer Tiefe reines Messrauschen und keine Variation zwischen Zufallscircuits. Die Größe wächst von $27$ Gates ($d=1$) auf $54$ Gates ($d=12$); in der neuen Version entspricht das $174$ bis $409$ Literalen.
+
+\subsection{ISCAS'85}
+
+Die ISCAS'85-Benchmarks \cite{brglez1985} sind kombinatorische Standard-Schaltkreise der Hardware-Verifikation. Das Framework liest die \texttt{.bench}-Dateien ein und verwendet die zehn klassischen Circuits c432 bis c7552 sowie zwei kleine Beispielcircuits (c3 mit $4$ und c17 mit $6$ Gates). Die Größen reichen von $4$ bis $3\,512$ Gates (c7552) und von $14$ bis $10\,690$ Klauseln der ersten Reihe. c1355 ist die Variante von c499, in der die XOR-Gates durch NAND-Gates ersetzt sind; das wird für den Äquivalenz-Miter genutzt. Der Parser der neuen Version sortiert die Gates topologisch und meldet undefinierte Signale und Zyklen als Fehler; die BUFF-Gates, die die erste Reihe ohne Klauseln ließ, werden nun kodiert.
+
+\subsection{Miter-Instanzen}
+
+Ein \emph{Miter} verbindet zwei Circuits $A$ und $B$ mit gemeinsamen Eingängen; sein Ausgang ist das ODER über die XOR-Verknüpfungen entsprechender Ausgänge. Mit der Ausgangsbedingung ist die Formel genau dann erfüllbar, wenn sich $A$ und $B$ auf mindestens einer Eingabe unterscheiden; sind sie funktional äquivalent, ist sie \emph{unerfüllbar}. Es gibt neun Miter-Instanzen: acht \emph{Selbst-Miter}, die einen Circuit mit einer Kopie seiner selbst vergleichen (Target-AND mit $m=10$ und $m=20$ sowie c17, c432, c499, c880, c1355 und c1908), und einen \emph{Äquivalenz-Miter} von c499 gegen c1355. Alle neun sind unerfüllbar. Ein Miter enthält die Gates beider Circuits und zusätzlich die XOR- und ODER-Gates; \texttt{MiterSelf\_c1908} hat deshalb $1\,786$ Gates, c1908 selbst $880$. Die Miter sind die einzigen Instanzen, deren Unerfüllbarkeit aus der Konstruktion folgt; unerfüllbar sind in der neuen Version außerdem neun der zwölf Target-AND-Random-Instanzen (alle Tiefen außer $d=1,7,11$). Sie prüfen, ob der Solver ein \texttt{UNSAT} der Reduktionskette (Korollar~\ref{kor:kette}) liefert.
+
+\subsection{Skalierungsinstanzen}
+
+Target-AND mit $m\in\{100,1000,10\,000,50\,000\}$ (bis zu $99\,999$ Gates) soll prüfen, ob ein Skalierungseffekt über das Messrauschen hinauswächst. Ausgewertet sind nur $m=100$ und $m=1000$; der Lauf wurde bei $m=10\,000$ abgebrochen (Abschnitt~\ref{sec:exp_daten}).
+
+\section{CNF-Kodierung und ihre Korrektur}
+\label{sec:exp_kodierung}
+
+Für ein Gate mit Variable $y$ und Eingangsvariablen $x_1,\ldots,x_k$ erzeugt die \emph{erste} Fassung der Kodierung die Klauseln aus Tabelle~\ref{tab:exp_kodierung}.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{2.0cm}YL{2.0cm}@{}}
+		\toprule
+		Gate & Klauseln & Anzahl \\
+		\midrule
+		NOT & $(\neg y\vee\neg x_1),\ (y\vee x_1)$ & $2$ \\
+		AND & $(\neg y\vee x_1\vee\ldots\vee x_k),\ (\neg y\vee x_i)_i,\ (y\vee\neg x_1\vee\ldots\vee\neg x_k)$ & $k+2$ \\
+		OR & $(y\vee\neg x_1\vee\ldots\vee\neg x_k),\ (y\vee\neg x_i)_i,\ (\neg y\vee x_1\vee\ldots\vee x_k)$ & $k+2$ \\
+		NAND, NOR & Klauselmuster von OR beziehungsweise AND & $k+2$ \\
+		XOR & vier Klauseln über $y,x_1,x_2$ & $4$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Kodierung der ersten Messreihe. Eine Prüfung gegen alle Eingabekombinationen zeigt: NOT, AND und OR sind korrekt, NAND, NOR und XOR nicht.}
+	\label{tab:exp_kodierung}
+\end{table}
+
+\paragraph{Der Fehler.} NAND verwendet im Quelltext dasselbe Muster wie OR, NOR dasselbe wie AND, und die vier XOR-Klauseln beschreiben $y\leftrightarrow\neg(x_1\oplus x_2)$, also XNOR. Die erzeugten Dateien beschreiben für Gates dieser drei Typen nicht die Funktion des Circuits. Betroffen sind vor allem ISCAS'85 (c17 besteht ausschließlich aus NAND-Gates, c6288 zu etwa $88\,\%$ aus NAND-, NOR- und XOR-Gates) und die Zwischenschichten von Target-AND-Random. Die Target-AND-Circuits verwenden nur NOT und AND und sind nicht betroffen. Die Arbeit hat die fehlerhafte Kodierung für die erste Reihe bewusst nicht verändert, damit die dokumentierten Ergebnisse den tatsächlich ausgeführten Experimenten entsprechen.
+
+\paragraph{Keine Ausgangsbedingung.} Die erste Kodierung enthält keine Unit-Klausel, die den Ausgang auf wahr festlegt. Jede Eingabebelegung lässt sich daher zu einer erfüllenden Belegung der Gesamtformel fortsetzen; die Formeln der ersten Reihe sind unabhängig vom Circuit erfüllbar. Das hat Folgen für die Aussagekraft: Es gab keine unerfüllbaren Instanzen, und ein korrekt arbeitender Solver müsste immer \texttt{SAT} melden.
+
+\paragraph{Die Korrektur in Version~2.0.0.} Die neue Version hat alle Gate-Typen gegen ihre Wahrheitstabellen getestet und kodiert zusätzlich BUFF, XNOR und $n$-äres XOR. Der erste Ausgang des Circuits wird durch eine Unit-Klausel auf wahr gesetzt (\texttt{constraint="output"}); damit sind die Formeln nicht mehr trivial erfüllbar. Die neue Kodierung ist die Voraussetzung dafür, dass die Miter überhaupt unerfüllbar sein können.
+
+\section{Messmethodik}
+\label{sec:exp_messung}
+
+\subsection{Erste Messreihe}
+
+Jeder Lauf schreibt die CNF in eine temporäre Datei und startet den Solver mit \texttt{subprocess.run} und einem Zeitlimit von $30$\,s. Gemessen wird die Wallclock-Zeit zwischen zwei Aufrufen von \texttt{time.time()} vor dem Start und nach dem Ende des Prozesses, in Millisekunden. Sie umfasst Prozessstart, Einlesen der Datei, Lösen und Prozessende. Als erfüllbar gilt eine Instanz, wenn \texttt{SAT} in Standard- oder Fehlerausgabe vorkommt und \texttt{UNSAT} nicht. Der Speicherverbrauch wird nicht erfasst (das Feld \texttt{memory\_usage\_mb} ist stets $0$). Je Lauf werden Circuit-Typ, Name, Zahl der Eingänge, Gates und Klauseln, Erfüllbarkeit, Laufzeit, Zeitstempel, LBV-Runden und Metadaten als JSON und CSV gespeichert. Es gibt $1$ bis $12$ Wiederholungen je Instanz, ohne Aufwärmphase.
+
+\subsection{Neue Version 2.0.0}
+\label{sec:exp_neue_messung}
+
+Die neue Version startet jeden Solver als eigenen Prozess (\texttt{subprocess.Popen}, Standard- und Fehlerausgabe in temporäre Dateien). Die Laufzeit $t$ ist die Zeit zwischen zwei Aufrufen von \texttt{time.perf\_counter\_ns()} in Millisekunden; sie enthält weiterhin Prozessstart, Einlesen, Lösen und Prozessende. Beim Warten auf das Prozessende liest das Framework über \texttt{os.wait4} die Spitzen-Speichernutzung (\texttt{ru\_maxrss}). Ein Timer-Thread beendet den Prozess nach Ablauf des Zeitlimits (Status \texttt{TIMEOUT}). Der Status folgt der Reihenfolge aus Abschnitt~\ref{sec:exp_kopplung}.
+
+Für jede Instanz und jeden Solver gilt der Ablauf in Abbildung~\ref{abb:exp_ablauf}. Zuerst laufen $3$ Warm-up-Läufe, deren Ergebnisse verworfen werden. Die Zahl der gemessenen Wiederholungen ist
+\[
+n \;=\; \max\!\Bigl(3,\ \min\!\bigl(30,\ \lfloor 60\,000/t_w\rfloor\bigr)\Bigr),
+\]
+wobei $t_w$ die Laufzeit des letzten Warm-up-Laufs in Millisekunden ist. Der Zeitbudget-Term begrenzt den Aufwand je Instanz auf etwa $60$\,s: Schnelle Instanzen werden $30$-mal gemessen, langsame mindestens dreimal. Endet schon ein Warm-up-Lauf mit \texttt{TIMEOUT}, \texttt{ERROR} oder \texttt{NO\_OUTPUT}, wird die Instanz nur noch einmal gemessen ($n=1$). Berichtet wird der \emph{Median} der $n$ Läufe; Läufe mit \texttt{TIMEOUT} gehen nicht in den Median der übrigen ein. Bei $n=1$ ist der angegebene Wert die Dauer dieses einen Laufs. Ein Wert bei \texttt{TIMEOUT} oder \texttt{ERROR} ist deshalb keine Median-Schätzung, sondern ein einzelner Messwert und bei \texttt{ERROR} die Zeit bis zum Fehler, keine Lösungszeit.
+
+\begin{figure}[!ht]
+	\centering
+	\resizebox{0.97\textwidth}{!}{%
+		\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+			s/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=3.0cm, minimum height=1.5cm, inner sep=3pt},
+			ex/.style={draw=accentred, rounded corners=2pt, fill=white, align=center, text width=3.0cm, minimum height=1.5cm, inner sep=3pt},
+			l/.style={font=\scriptsize, text=darkgray, align=center}]
+			\node[s] (a) at (0,0)    {\textbf{Basislinie}\\$30$ Läufe, triviale Instanz};
+			\node[s] (b) at (4.1,0)  {\textbf{Warm-up}\\$3$ Läufe, verworfen};
+			\node[s] (c) at (8.2,0)  {\textbf{Messläufe}\\$n$ Läufe, $3\le n\le30$};
+			\node[s] (d) at (12.3,0) {\textbf{Median}\\der $n$ Läufe};
+			\node[ex] (e) at (8.2,-2.4) {$n=1$\\(Abbruch bei \texttt{TIMEOUT}, \texttt{ERROR}, \texttt{NO\_OUTPUT})};
+			\draw[->] (a)--(b); \draw[->] (b)--(c); \draw[->] (c)--(d);
+			\draw[->, dashed] (b) |- (e); \draw[->, dashed] (e) -| (d);
+			\node[l] at (4.1,1.2) {einmal je Solver\\zu Beginn eines Presets};
+		\end{tikzpicture}%
+	}
+	\caption{Messablauf der neuen Version je Instanz und Solver.}
+	\label{abb:exp_ablauf}
+\end{figure}
+
+Die \emph{Basislinie} wird je Solver zu Beginn eines Presets gemessen: $30$ Läufe mit der trivialen Instanz \texttt{p cnf 2 2} mit den Klauseln $(x_1\vee x_2)$ und $(\neg x_1\vee x_2)$. Ihr Median ist die Prozessstart-Grundlast, die in allen Laufzeiten enthalten ist.
+
+\subsection{Vergleich der beiden Aufbauten}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.0cm}YY@{}}
+		\toprule
+		Aspekt & Erste Messreihe & Neue Version 2.0.0 \\
+		\midrule
+		Zeitmessung & \texttt{time.time()}, Auflösung praktisch $15{,}625$\,ms & \texttt{time.perf\_counter\_ns}, Auflösung $1$\,ns \\
+		Ergebnis & nicht erfasst (\texttt{satisfiable} stets \texttt{False}) & Status je Lauf, Rückgabecode, Modellprüfung \\
+		Kodierung & NAND, NOR, XOR fehlerhaft; BUFF ohne Klauseln & alle Gate-Typen gegen Wahrheitstabellen getestet \\
+		Ausgangsbedingung & keine, Formeln stets erfüllbar & Unit-Klausel auf den ersten Ausgang \\
+		Unerfüllbare Instanzen & keine & neun Miter \\
+		Größte Instanz & $3\,512$ Gates & Skalierung bis $m=50\,000$ vorgesehen \\
+		Wiederholungen & $1$ bis $12$, ohne Warm-up & bis $30$, $3$ Warm-up-Läufe, Median \\
+		Zeitlimit & $30$\,s & $60$\,s \\
+		Basislinie & keine & Prozessstart-Grundlast ($n=30$) \\
+		Speicher & nicht gemessen & Spitzen-RSS je Lauf (\texttt{wait4}) \\
+		Umgebung & nicht dokumentiert & dokumentiert (Abschnitt~\ref{sec:exp_umgebung}) \\
+		Vergleichssolver & keiner & Python-CDCL-Referenzsolver \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Unterschiede zwischen erster Messreihe und neuer Version.}
+	\label{tab:exp_aenderungen}
+\end{table}
+
+\subsection{Die beiden Solver}
+\label{sec:exp_loeser}
+
+\paragraph{Subgraph-SAT-Solver.} Das in Kapitel~\ref{chap:solver} beschriebene Kommandozeilenprogramm, in der neuen Reihe mit \texttt{g++ -O2} gebaut. Seine Laufzeit enthält außer der Reduktion auch Datei-I/O und den Start des externen Subgraph-Prozesses; die Phasenzeiten des Solvers (Reduktion, Subgraph-Aufruf, Extraktion) sind eine andere Messung als die Wallclock-Zeit des Frameworks. Die Schranke $\Theta(n^3)$ bezieht sich auf den Subgraph Algorithmus allein und beschreibt weder automatisch die Kosten der gesamten Implementierung noch belegt sie deren Korrektheit.
+
+\paragraph{Referenzsolver.} Ein kleiner CDCL-Solver in reinem Python (Zwei-Watched-Literals-Propagation, 1-UIP-Lernen mit nicht-chronologischem Backjumping, VSIDS, Phase-Saving, Luby-Restarts). Er ist ausdrücklich nicht auf Geschwindigkeit ausgelegt und mit MiniSat oder CaDiCaL nicht konkurrenzfähig. Er spricht dasselbe Aufrufprotokoll wie ein externer Solver und dient (i) als unabhängige Prüfung der Ergebnisse und (ii) als grober Vergleichsmaßstab. Weil er als Python-Programm startet, enthält jede seiner Laufzeiten die Startzeit des Interpreters. \emph{Messwerte dieses Solvers sagen nichts über die Leistung etablierter SAT-Solver aus.}
+
+\subsection{Experiment-Suites der ersten Reihe}
+
+Die vier Suites unterscheiden sich in Umfang und Wiederholungszahl (Tabelle~\ref{tab:exp_suites}). Quick und Standard enthalten jeden Circuit einmal, Full und Performance fünfmal (Target-AND und Target-AND-Random) beziehungsweise einmal (ISCAS'85). Full und Performance sind in Umfang und Zusammensetzung identisch. Insgesamt entstehen $288$ Läufe: $108$ Target-AND, $144$ Target-AND-Random und $36$ ISCAS'85.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{2.6cm}rrrrY@{}}
+		\toprule
+		Suite & T-AND & T-AND-R & ISCAS & Läufe & Mittelwert $\bar t$ (ms) \\
+		\midrule
+		Quick & $9$ & $12$ & $0$ & $21$ & $24{,}52$ \\
+		Standard & $9$ & $12$ & $12$ & $33$ & $22{,}46$ \\
+		Full & $45$ & $60$ & $12$ & $117$ & $21{,}68$ \\
+		Performance & $45$ & $60$ & $12$ & $117$ & $21{,}27$ \\
+		\midrule
+		Summe & $108$ & $144$ & $36$ & $288$ & $21{,}81$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die vier Suites der ersten Messreihe. T-AND: Target-AND, T-AND-R: Target-AND-Random.}
+	\label{tab:exp_suites}
+\end{table}
+
+Die neue Version arbeitet mit dem Full-Preset (Tabelle~\ref{tab:exp_preset}).
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{5.6cm}Y@{}}
+		\toprule
+		Parameter & Wert \\
+		\midrule
+		Wiederholungen (Obergrenze) & $30$ \\
+		Warm-up-Läufe & $3$ \\
+		Mindestzahl Wiederholungen & $3$ \\
+		Zeitlimit je Lauf, Zeitbudget je Instanz & $60$\,s \\
+		Instanzen & $46$ (Target-AND $9$, Random $12$, ISCAS $12$, Miter $9$, Skalierung $4$) \\
+		Solver & Subgraph-SAT-Solver, Referenzsolver \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Konfiguration des Full-Presets der neuen Version.}
+	\label{tab:exp_preset}
+\end{table}
+
+\subsection{Statistische Auswertung}
+
+Alle Kennzahlen werden aus den CSV-Dateien berechnet: Mittelwert $\bar t$, Standardabweichung $s$ (mit $n-1$), Median, Quartile, Minimum und Maximum. Zusammenhänge werden mit der Rangkorrelation nach Spearman ($\rho$), der Pearson-Korrelation ($r$) und einer linearen Regression geprüft. Da die Laufzeiten deutlich nicht normalverteilt sind, verwendet die Arbeit für Gruppenvergleiche rangbasierte Tests: Kruskal--Wallis für mehr als zwei Gruppen und Mann--Whitney-$U$ für zwei Gruppen, jeweils zum Niveau $\alpha=0{,}05$.
+
+\section{Die Umgebung der neuen Messreihe}
+\label{sec:exp_umgebung}
+
+Alle Messungen der neuen Version liefen am 11.\,Oktober 2026 auf einer virtuellen Maschine in der Cloud (Datei \texttt{src/results/hardware.md}). Die Umgebung der ersten Reihe wurde nicht dokumentiert.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{4.0cm}Y@{}}
+		\toprule
+		Merkmal & Wert \\
+		\midrule
+		Prozessor & Intel Xeon @ $2{,}80$\,GHz, x86\_64, \textbf{1 Socket, 1 Kern, 1 Thread (eine CPU)} \\
+		Cache & L2 $1$\,MiB, L3 $33$\,MiB \\
+		Arbeitsspeicher & $3{,}9$\,GiB, kein Swap \\
+		Betriebssystem & Linux, Kernel $6.18.44$ (glibc $2.39$) \\
+		Python & CPython $3.12.3$; NumPy $2.4.4$, Matplotlib $3.10.8$ \\
+		Compiler & \texttt{g++} (C++17, \texttt{-O2 -Wall -Wextra}) \\
+		Zeitgeber & \texttt{time.perf\_counter\_ns} (monoton, $1$\,ns) \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Hardware- und Softwareumgebung der neuen Messreihe.}
+	\label{tab:exp_hardware}
+\end{table}
+
+Vier Eigenschaften dieser Umgebung sind für die Deutung wichtig.
+
+\begin{itemize}
+	\item \textbf{Ein einziger Kern.} Solver-Prozess und Messprozess (mit dem Timer-Thread) teilen sich die eine CPU. Das kann sehr kurze Läufe im Bereich weniger Millisekunden leicht verzerren.
+	\item \textbf{Wenig Speicher, kein Swap.} Die Adjazenzmatrix der Reduktion wächst quadratisch mit der Zahl der Literalvorkommen. Bei sehr großen Instanzen kann der Speicher knapp werden; ohne Swap kann eine Überschreitung den Prozess beenden. Ob das die Ursache der \texttt{ERROR}-Läufe und des Abbruchs war, wurde nicht geprüft.
+	\item \textbf{Build ohne \texttt{-march=native}.} Die Binaries wurden mit \texttt{g++ -O2} gebaut; die CMake-Konfiguration des Solvers setzt dagegen \texttt{-O3 -march=native}. Die Laufzeiten sind mit einem CMake-Build nur eingeschränkt vergleichbar.
+	\item \textbf{Virtuelle Maschine.} Taktrate und Cache sind die Werte, die die VM meldet; die zugeteilte Rechenzeit kann schwanken.
+\end{itemize}
+
+\section{Ergebnisse der ersten Messreihe}
+\label{sec:exp_erste}
+
+Über alle $288$ Läufe liegt die Laufzeit zwischen $6{,}02$ und $40{,}27$\,ms; Mittelwert $21{,}81$\,ms, Standardabweichung $7{,}25$\,ms, Median $19{,}65$\,ms. Kein Lauf endete mit einem Fehler oder einem Timeout. Die Instanzen überdecken von $4$ bis $3\,512$ Gates (Faktor $878$) und von $14$ bis $10\,690$ Klauseln (Faktor $764$).
+
+\subsection{Laufzeit über der Instanzgröße (F1 bis F3)}
+
+\paragraph{Target-AND (F1).} Gates und Klauseln wachsen nach Satz~\ref{satz:exp_groesse} linear von $7$ auf $39$ Gates. Die mittlere Laufzeit je Eingangszahl liegt zwischen $17{,}49$\,ms ($m=4$) und $24{,}29$\,ms ($m=20$) ohne erkennbaren Trend; sie springt bei $m=6$ auf $24{,}23$\,ms und erreicht bei $m=10$ ein Nebenminimum von $19{,}09$\,ms. Die Standardabweichung innerhalb eines $m$-Wertes ($6{,}02$ bis $8{,}56$\,ms) ist größer als der Unterschied der Mittelwerte. Die Rangkorrelation zwischen Gate-Anzahl und Laufzeit beträgt $\rho=0{,}106$ ($p=0{,}275$, $n=108$).
+
+\paragraph{Target-AND-Random (F2).} Bei $m=10$ wächst der Circuit mit der Tiefe von $27$ Gates und $91$ Klauseln ($d=1$) auf $54$ Gates und $206$ Klauseln ($d=12$). Die mittlere Laufzeit schwankt unsystematisch zwischen $18{,}79$\,ms ($d=8$) und $26{,}57$\,ms ($d=5$) und ist bei $d=12$ ($20{,}56$\,ms) kleiner als bei $d=1$ ($23{,}08$\,ms). Es gilt $\rho=-0{,}086$ ($p=0{,}306$, $n=144$); die Regression ergibt $-0{,}28$\,ms je Schicht bei $R^2=0{,}018$.
+
+\paragraph{ISCAS'85 (F3).} Je Circuit liegen drei Läufe vor (Standard, Full, Performance). Die mittleren Laufzeiten liegen zwischen $15{,}79$\,ms (c3540) und $31{,}85$\,ms (c1355). Der größte Circuit c7552 ($3\,512$ Gates, $10\,690$ Klauseln) wird im Mittel in $21{,}26$\,ms bearbeitet, nicht langsamer als der ISCAS-Mittelwert von $20{,}23$\,ms. Über alle $36$ Läufe gilt $\rho=0{,}104$ ($p=0{,}547$). c1355 ist der einzige Circuit mit in allen drei Wiederholungen erhöhter Zeit ($31{,}69$ bis $32{,}00$\,ms); ob das eine Eigenschaft der Instanz oder Zufall ist, lässt sich mit drei Läufen nicht entscheiden.
+
+\paragraph{Gesamtzusammenhang.} Über alle $288$ Läufe beträgt $\rho=0{,}024$ ($p=0{,}686$); die Regression ergibt $-0{,}6\,\mu$s je Gate bei $R^2=0{,}002$. In keiner Teilmenge ist ein Zusammenhang signifikant ($p>0{,}1$), die Bestimmtheitsmaße liegen unter $2{,}5\,\%$.
+
+\subsection{Vergleich der Typen und Suites (F4)}
+
+Die Typen unterscheiden sich nicht signifikant (Kruskal--Wallis $H=2{,}63$, $p=0{,}268$), ebenso wenig ISCAS'85 von den synthetischen Läufen (Mann--Whitney $p=0{,}140$) und die vier Suites untereinander ($H=2{,}39$, $p=0{,}495$). Die gleich aufgebauten Suites Full und Performance weichen im Mittel um $+2{,}8\,\%$, $-5{,}6\,\%$ und $+0{,}7\,\%$ ab (Target-AND, Random, ISCAS), nicht signifikant ($p=0{,}513$; $0{,}483$; $0{,}751$). Die Messungen sind in diesem Sinn reproduzierbar, doch das gilt auch für jede Messgröße, die nur Rauschen enthält.
+
+\subsection{Zeitliche Auflösung}
+
+Fast die Hälfte der Läufe liegt in zwei schmalen Klassen: $76$ Läufe ($26{,}4\,\%$) in $[15;16)$\,ms und $60$ Läufe ($20{,}8\,\%$) in $[31;32)$\,ms, zusammen $136$ von $288$ ($47{,}2\,\%$). Insgesamt liegen $173$ Werte ($60{,}1\,\%$) innerhalb von $\pm1$\,ms um $15{,}625$\,ms oder $31{,}25$\,ms; bei Gleichverteilung über $6$ bis $40$\,ms wären nur etwa $12\,\%$ zu erwarten. $15{,}625\,\mathrm{ms}=1/64\,\mathrm{s}$ ist die typische Aktualisierungsrate der Systemuhr unter Windows; die Häufung ist mit einer groben Auflösung von \texttt{time.time()} konsistent. Die Arbeit behandelt das als gut gestützte Hypothese, nicht als bewiesen, denn der Datensatz enthält keine Angaben zum Betriebssystem.
+
+Auch die Form der Verteilung stützt die Hypothese: Der kleinste ISCAS-Circuit c3 ($4$ Gates) und der Circuit c3540 ($1\,669$ Gates) liegen beide bei etwa $15{,}8$\,ms, obwohl ein Faktor $417$ in der Gate-Anzahl zwischen ihnen liegt. Die Mittelwerte und Standardabweichungen beschreiben eine zweigipflige Verteilung schlecht; $\bar t\pm s$ ist hier kein Bereich, in dem die Läufe typischerweise liegen.
+
+\subsection{Solver-Ausgabe und Erfüllbarkeit}
+\label{sec:exp_erste_ausgabe}
+
+In keinem der $288$ Läufe wurde ein Erfüllbarkeitsergebnis erfasst: \texttt{satisfiable} ist durchgehend \texttt{False}, \texttt{solver\_output} stets leer, und es wurde kein Fehler protokolliert. Der Prozess startete also und endete ohne erkannte Ausgabe, ohne dass der Rückgabecode ausgewertet worden wäre. Da die Formeln erfüllbar waren (Abschnitt~\ref{sec:exp_kodierung}), hätte ein korrekt arbeitender Solver \texttt{SAT} melden müssen. Dieser Widerspruch ist der gewichtigste Mangel der ersten Reihe; er ist mit dem Befund B2 verwandt (Kapitel~\ref{chap:befunde}), nach dem der Exit-Code des Solvers nicht eindeutig ist und eine Auswertung allein der Ausgabe oder des Codes in die Irre führt.
+
+\subsection{Was die erste Messreihe nicht stützt}
+
+Eine Unabhängigkeit der Laufzeit von der Größe ist nur dann eine Aussage über den Algorithmus, wenn die Zeit die Rechenzeit ist. Das ist aus vier Gründen nicht gesichert: Der Messwert wird vom Prozessstart dominiert; die Zeitauflösung ist grob; es wurde keine Solver-Ausgabe erfasst; und die Kodierung ist für NAND, NOR und XOR fehlerhaft, die ISCAS-Läufe messen also Formeln, die nicht die ISCAS-Circuits darstellen. Die erste Reihe kann die Schranke $\Theta(n^3)$ daher weder bestätigen noch widerlegen. Die Aussage \glqq konstante Laufzeit\grqq{} ist \emph{nicht} ableitbar: Konstanz im Rauschen einer vom Prozessstart bestimmten Messung ist keine Konstanz des Algorithmus. Als Befund bleibt eine obere Schranke: Der Prozess endete für alle Instanzen ohne Timeout in unter $41$\,ms.
+
+\section{Ergebnisse der neuen Version}
+\label{sec:exp_neue}
+
+\subsection{Datenbasis}
+\label{sec:exp_daten}
+
+Der Lauf des Full-Presets wurde nicht beendet. Die Konsolenausgabe endet bei der Zeile für den Subgraph-SAT-Solver auf \texttt{TargetAND\_m10000}, ohne Ergebnis; ob der Speicher von $3{,}9$\,GiB der Grund war, wurde nicht geprüft. Daraus folgt:
+
+\begin{itemize}
+	\item Ausgewertet sind $44$ von $46$ Instanzen, je für beide Solver; es fehlen \texttt{TargetAND\_m10000} und \texttt{TargetAND\_m50000}.
+	\item Die Dateien, die erst am Ende eines Laufs geschrieben werden (Ergebnis-CSV und -JSON, Zusammenfassung, Umgebung, Basislinie, Konfiguration, Diagramme), liegen nicht vor. Datenbasis ist eine Zwischenstand-CSV mit den Spalten \texttt{solver}, \texttt{instanz}, \texttt{gates}, \texttt{status}, \texttt{n}, \texttt{median\_ms} und \texttt{anmerkung}; ihre $88$ Zeilen stimmen mit den $88$ Ergebniszeilen der Konsolenausgabe überein.
+	\item Je Instanz und Solver steht \emph{nur der Median} und die Zahl $n$ der Läufe darin. Streumaße, Rückgabecodes, Ausgaben, Speicherverbrauch und das Ergebnis der Modellprüfung je Lauf sind nicht verfügbar.
+	\item In die Mediane gingen $933$ Läufe des Subgraph-SAT-Solvers und $1\,257$ des Referenzsolvers ein (Summe der $n$ ohne Warm-up).
+\end{itemize}
+
+\subsection{Basislinie}
+
+Die Basislinie ($n=30$) beträgt für den Subgraph-SAT-Solver $8{,}43$\,ms ($s=1{,}80$\,ms), für den Referenzsolver $56{,}18$\,ms ($s=14{,}63$\,ms), das $6{,}7$-Fache wegen des Interpreterstarts. Beide Werte sind in allen Laufzeiten enthalten. Differenzen unterhalb weniger Millisekunden (Subgraph-SAT-Solver) und unterhalb von etwa $15$\,ms (Referenzsolver) sind von der Grundlast nicht zu unterscheiden. Deshalb liegen zwei Mediane des Subgraph-SAT-Solvers (c3: $6{,}98$\,ms, c17: $7{,}24$\,ms) und $30$ von $44$ des Referenzsolvers unter der jeweiligen Basislinie: Sie ist selbst ein Median mit Streuung und wurde einmal gemessen.
+
+\subsection{Gesamtüberblick}
+
+Der Referenzsolver erreicht bei allen $44$ Instanzen ein Ergebnis. Der Subgraph-SAT-Solver erreicht bei $33$ ein Ergebnis, bei $5$ ein Zeitlimit und bei $6$ den Status \texttt{ERROR}. Tabelle~\ref{tab:exp_status} gibt die Verteilung je Familie wieder.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.3cm}rYY@{}}
+		\toprule
+		Familie & Instanzen & Subgraph-SAT-Solver & Referenzsolver \\
+		\midrule
+		Target-AND & $9$ & $9\times$ SAT & $9\times$ SAT \\
+		Target-AND-Random & $12$ & $3\times$ SAT, $9\times$ UNSAT & $3\times$ SAT, $9\times$ UNSAT \\
+		ISCAS'85 & $12$ & $8\times$ SAT, $4\times$ ERROR & $12\times$ SAT \\
+		Miter & $9$ & $3\times$ UNSAT, $5\times$ Timeout, $1\times$ ERROR & $9\times$ UNSAT \\
+		Skalierung & $2$ & $1\times$ SAT, $1\times$ ERROR & $2\times$ SAT \\
+		\midrule
+		Summe & $44$ & $33$ Ergebnisse, $5$ Timeouts, $6$ ERROR & $44$ Ergebnisse \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Status je Instanzfamilie in der neuen Version (Zwischenstand, $44$ Instanzen).}
+	\label{tab:exp_status}
+\end{table}
+
+Bei den $33$ Instanzen, auf denen beide Solver entscheiden, stimmen die Ergebnisse in allen Fällen überein. Bei den $13$ Instanzen mit aus der Konstruktion bekanntem Ergebnis trifft der Subgraph-SAT-Solver die erwartete Antwort, der Referenzsolver tut es bei allen $20$ solchen Instanzen. Der Subgraph-SAT-Solver verfehlt zwei bekannte Antworten, \texttt{MiterSelf\_c1908} und \texttt{TargetAND\_m1000}, jeweils mit \texttt{ERROR}; ein \texttt{ERROR} ist keine falsche Antwort, aber auch kein Ergebnis. Für keine ausgewertete Instanz wurde ein ungültiges Modell gemeldet; da die Modellprüfung nur für den ersten Lauf je Instanz und nur bei ausgegebenem Modell erfolgt und die Einzelergebnisse fehlen, ist das nicht nachprüfbar.
+
+\subsection{Target-AND und Skalierung}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{1.6cm}rrrYY@{}}
+		\toprule
+		$m$ & Gates & Klauseln & Literale & $\tilde t_{\mathrm{SG}}$ (ms) & $\tilde t_{\mathrm{Ref}}$ (ms) \\
+		\midrule
+		$4$ & $7$ & $18$ & $38$ & $9{,}52$ & --- \\
+		$6$ & $11$ & $28$ & $60$ & $8{,}53$ & --- \\
+		$8$ & $15$ & $38$ & $82$ & $10{,}11$ & --- \\
+		$10$ & $19$ & $48$ & $104$ & $13{,}01$ & $65{,}36$ \\
+		$16$ & $31$ & $78$ & $170$ & $19{,}02$ & $41{,}02$ \\
+		$20$ & $39$ & $98$ & $214$ & $17{,}88$ & --- \\
+		$100$ & $199$ & $498$ & $1\,094$ & $321{,}23$ & $53{,}56$ \\
+		$1000$ & $1\,999$ & $4\,998$ & $10\,994$ & ERROR ($25\,090$) & $102{,}17$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Target-AND und Skalierung, Auswahl der Werte der Arbeit; \glqq---\grqq{} bedeutet, dass der Wert hier nicht wiedergegeben ist. Klauseln und Literale folgen Satz~\ref{satz:exp_groesse}.}
+	\label{tab:exp_tand}
+\end{table}
+
+Für $m=4$ bis $20$ steigt der Median des Subgraph-SAT-Solvers nicht streng monoton, aber erkennbar von $9{,}52$ auf $17{,}88$\,ms (Minimum $8{,}53$\,ms bei $m=6$, Maximum $19{,}02$\,ms bei $m=16$). Die Regression über die neun Werte ergibt $0{,}66$\,ms je zusätzlichem Eingang bei $R^2=0{,}836$, $\rho=0{,}883$. Die Instanz wächst dabei um den Faktor $5{,}6$ ($38\to214$ Literale), der Median nur um $1{,}9$; für $m\le8$ liegen die Mediane höchstens $1{,}7$\,ms über der Basislinie. Der Referenzsolver zeigt keinen Anstieg (zwischen $41{,}02$ und $65{,}36$\,ms um die Basislinie, $\rho=-0{,}417$).
+
+Bei $m=100$ steigt der Median auf $321{,}23$\,ms, das $6{,}0$-Fache des Referenzsolvers ($53{,}56$\,ms). Von $m=20$ auf $m=100$ wächst die Laufzeit um den Faktor $18{,}0$ bei einem Literalfaktor von $5{,}1$; nach Abzug der Basislinie ergibt sich der Faktor $33{,}1$ und ein Exponent von etwa $2{,}1$, aus nur zwei Punkten. Bei $m=1000$ scheitert der Subgraph-SAT-Solver nach $25{,}09$\,s mit \texttt{ERROR}, obwohl die Instanz nach Konstruktion erfüllbar ist und der Referenzsolver sie in $102{,}17$\,ms löst.
+
+\subsection{Target-AND-Random}
+\label{sec:exp_tiefe}
+
+Der Median des Subgraph-SAT-Solvers steigt mit der Tiefe nahezu monoton von $14{,}59$\,ms ($d=1$) auf $60{,}04$\,ms ($d=12$), um den Faktor $4{,}1$ bei einer Verdopplung der Gates ($27\to54$) und einem Literalfaktor von $2{,}35$. Es gibt eine Abweichung ($d=9$: $37{,}32$\,ms unter $d=8$: $39{,}13$\,ms). Es gilt $\rho=0{,}993$, die Regression ergibt $3{,}73$\,ms je Schicht bei $R^2=0{,}953$. Über der Literalzahl ($174$ bis $409$) liegen die Punkte eng an einer Geraden mit $0{,}174$\,ms je Literal ($R^2=0{,}936$); der Achsenabschnitt ($-19{,}3$\,ms) ist negativ, die Gerade beschreibt daher nur diesen Messbereich. Erfüllbare ($d=1,7,11$) und unerfüllbare Instanzen liegen auf derselben Geraden; die Selbst-Miter von Target-AND ($19{,}97$ und $53{,}58$\,ms bei $219$ und $439$ Literalen) liegen nahe an dem, was die Gerade ergibt ($18{,}7$ und $57{,}0$\,ms).
+
+Der Referenzsolver schwankt dagegen unsystematisch zwischen $42{,}28$ ($d=7$) und $53{,}58$\,ms ($d=11$) ($R^2=0{,}145$). Die Kurven kreuzen sich zwischen $d=11$ ($47{,}68$ gegen $53{,}58$\,ms) und $d=12$ ($60{,}04$ gegen $44{,}42$\,ms).
+
+\subsection{ISCAS'85}
+\label{sec:exp_iscas}
+
+Tabelle~\ref{tab:exp_iscas} gibt alle zwölf Circuits wieder, Abbildung~\ref{abb:exp_iscas} zeigt die Mediane beider Solver auf logarithmischer Skala.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}lrrrrYr@{}}
+		\toprule
+		Circuit & Gates & Klauseln & Literale & $n_{\mathrm{SG}}$ & $\tilde t_{\mathrm{SG}}$ (ms) & $\tilde t_{\mathrm{Ref}}$ (ms) \\
+		\midrule
+		c3 & $4$ & $12$ & $26$ & $30$ & $6{,}98$ & $45{,}19$ \\
+		c17 & $6$ & $19$ & $43$ & $30$ & $7{,}24$ & $47{,}31$ \\
+		c432 & $160$ & $515$ & $1\,259$ & $30$ & $515{,}75$ & $71{,}23$ \\
+		c499 & $202$ & $715$ & $1\,947$ & $30$ & $1\,094{,}34$ & $51{,}71$ \\
+		c880 & $383$ & $1\,113$ & $2\,571$ & $30$ & $2\,167{,}29$ & $47{,}61$ \\
+		c1355 & $546$ & $1\,611$ & $3\,739$ & $13$ & $3\,945{,}39$ & $48{,}84$ \\
+		c1908 & $880$ & $2\,379$ & $5\,375$ & $6$ & $9\,931{,}22$ & $52{,}76$ \\
+		c2670 & $1\,193$ & $3\,270$ & $7\,422$ & $3$ & $20\,427{,}66$ & $70{,}09$ \\
+		c3540 & $1\,669$ & $4\,609$ & $10\,487$ & $1$ & ERROR ($26\,358$) & $72{,}42$ \\
+		c5315 & $2\,307$ & $6\,694$ & $15\,466$ & $1$ & ERROR ($29\,415$) & $67{,}58$ \\
+		c6288 & $2\,416$ & $7\,217$ & $16\,817$ & $1$ & ERROR ($24\,766$) & $77{,}80$ \\
+		c7552 & $3\,512$ & $9\,657$ & $21\,945$ & $1$ & ERROR ($40\,737$) & $89{,}88$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{ISCAS'85 in der neuen Version. Alle Instanzen sind erfüllbar (Referenzsolver: SAT). $n_{\mathrm{SG}}$ ist die Zahl der Messläufe des Subgraph-SAT-Solvers; bei ERROR steht die Zeit bis zum Fehler in Klammern.}
+	\label{tab:exp_iscas}
+\end{table}
+
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[font=\scriptsize, x=0.52cm,
+		sg/.style={fill=mainblue!70, draw=mainblue},
+		rf/.style={fill=accentred!55, draw=accentred},
+		er/.style={fill=white, draw=accentred, dashed, very thick}]
+		\def\h{0.22}
+		% Skala: Länge = 1.55*(log10 t - 0.5) cm in x-Einheiten; x=0.52cm
+		\foreach \t/\l in {10/1,100/2,1000/3,10000/4,100000/5}{
+			\pgfmathsetmacro{\xx}{3.4*(\l-0.5)}
+			\draw[gray!40] (\xx,-6.6) -- (\xx,0.4);
+			\node[gray, anchor=north] at (\xx,-6.6) {$10^{\l}$};
+		}
+		\node[anchor=north] at (8,-7.3) {Median in ms (logarithmisch)};
+		\foreach \name/\sg/\rf/\i in {c3/0.844/1.655/0, c17/0.860/1.675/1, c432/2.712/1.853/2, c499/3.039/1.714/3, c880/3.336/1.678/4, c1355/3.596/1.689/5, c1908/3.997/1.722/6, c2670/4.310/1.846/7}{
+			\pgfmathsetmacro{\y}{-0.5*\i}
+			\node[anchor=east] at (0,\y) {\name};
+			\fill[sg] (0,\y+0.02) rectangle (3.4*\sg-1.7,\y+0.02+\h);
+			\fill[rf] (0,\y-0.02-\h) rectangle (3.4*\rf-1.7,\y-0.02);
+		}
+		\foreach \name/\sg/\rf/\i in {c3540/4.421/1.860/8, c5315/4.469/1.830/9, c6288/4.394/1.891/10, c7552/4.610/1.954/11}{
+			\pgfmathsetmacro{\y}{-0.5*\i}
+			\node[anchor=east] at (0,\y) {\name};
+			\fill[er] (0,\y+0.02) rectangle (3.4*\sg-1.7,\y+0.02+\h);
+			\fill[rf] (0,\y-0.02-\h) rectangle (3.4*\rf-1.7,\y-0.02);
+		}
+		% Legende
+		\fill[sg] (11,-1.0) rectangle (11.6,-0.78); \node[anchor=west] at (11.7,-0.89) {Subgraph-SAT-Solver};
+		\fill[rf] (11,-1.5) rectangle (11.6,-1.28); \node[anchor=west] at (11.7,-1.39) {Referenzsolver};
+		\fill[er] (11,-2.0) rectangle (11.6,-1.78); \node[anchor=west] at (11.7,-1.89) {ERROR (Zeit bis Fehler)};
+	\end{tikzpicture}
+	\caption{Mediane der zwölf ISCAS'85-Circuits (Werte aus Tabelle~\ref{tab:exp_iscas}), logarithmische Achse. Die Balkenlänge ist proportional zu $\log_{10}t$ ab $t=10^{0{,}5}$\,ms.}
+	\label{abb:exp_iscas}
+\end{figure}
+
+Die Mediane des Subgraph-SAT-Solvers wachsen von c432 ($515{,}75$\,ms) bis c2670 ($20\,427{,}66$\,ms) durchgehend monoton über rund eineinhalb Größenordnungen. Bei einem Faktor $7{,}5$ in der Gate-Anzahl ($160$ bis $1\,193$) steigt die Laufzeit um den Faktor $39{,}6$. Wegen des Zeitbudgets sinkt die Zahl der Läufe mit der Laufzeit: $n=30$ bis c880, $13$ bei c1355, $6$ bei c1908 und $3$ bei c2670; die größten Mediane stützen sich auf wenige Läufe. Die vier Circuits ab $1\,669$ Gates enden mit \texttt{ERROR} nach $24{,}77$ bis $40{,}74$\,s (ein Lauf, da bereits der Warm-up fehlschlug); diese Zeiten sind keine Lösungszeiten. Der Referenzsolver bleibt flach zwischen $45{,}19$ und $89{,}88$\,ms (Median $60{,}17$\,ms), nahe der Basislinie.
+
+\paragraph{Potenzgesetz.} Eine Anpassung $t\propto L^b$ über der Literalzahl $L$ der sechs gelösten Circuits c432 bis c2670 ($1\,259$ bis $7\,422$ Literale) ergibt
+\[
+b = 2{,}08 \pm 0{,}07\ \text{(Standardfehler)},\qquad R^2 = 0{,}996,\qquad 95\,\%\text{-Intervall }[1{,}89;\ 2{,}27].
+\]
+Der Exponent liegt nahe $2$. Das ist mit der Struktur der Reduktion vereinbar, in der die Adjazenzmatrix des Clique-Graphen durch paarweise Vergleiche der Literalvorkommen entsteht und $O(L^2)$ Schritte benötigt; bewiesen ist dieser Zusammenhang durch die Messung nicht. Der Fit stützt sich auf sechs Punkte aus verschiedenen Circuits und auf Mediane aus $13$, $6$ und $3$ Läufen; er gilt für die Literalzahl der CNF, nicht für die Knotenzahl des Clique-Graphen, und er trennt die Reduktion nicht von der Rechenzeit des externen Subgraph-Prozesses. Er bestätigt oder widerlegt die Schranke $\Theta(n^3)$ des Subgraph Algorithmus nicht (Abschnitt~\ref{sec:exp_bedeutung}).
+
+\paragraph{Der Ausfall ab $10\,487$ Literalen.} Alle ISCAS-Circuits bis $7\,422$ Literale werden gelöst, alle ab $10\,487$ enden mit \texttt{ERROR}. Dieselbe Trennung zeigt der gesamte Datensatz: Alle sechs \texttt{ERROR}-Instanzen haben mindestens $10\,487$ Literale ($10\,487$, $10\,994$, $11\,125$, $15\,466$, $16\,817$, $21\,945$), alle Instanzen mit höchstens $7\,958$ Literalen enden mit einem Ergebnis oder einem Zeitlimit. Auch \texttt{TargetAND\_m1000}, ein einfacher AND-Baum, fällt aus. Der Ausfall hängt an der Instanzgröße, nicht an der logischen Schwierigkeit. Die Fehlerzeiten liegen mit $24{,}77$ bis $40{,}74$\,s deutlich unter dem Zeitlimit von $60$\,s. Die Ursache wurde nicht untersucht; zu prüfen sind der Speicherbedarf der Reduktion und des externen Subgraph-Prozesses auf der Maschine mit $3{,}9$\,GiB ohne Swap, die Größe der JSON-Dateien mit den Kantenlisten und die interne Fehlerbehandlung.
+
+\subsection{Miter-Instanzen}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}lrrrYr@{}}
+		\toprule
+		Instanz & Gates & Literale & $\tilde t_{\mathrm{SG}}$ (ms) & Status (SG) & $\tilde t_{\mathrm{Ref}}$ (ms) \\
+		\midrule
+		MiterSelf\_c17 & $15$ & $116$ & $9{,}86$ & UNSAT & $46{,}92$ \\
+		MiterSelf\_TargetAND\_m10 & $39$ & $219$ & $19{,}97$ & UNSAT & $47{,}66$ \\
+		MiterSelf\_TargetAND\_m20 & $79$ & $439$ & $53{,}58$ & UNSAT & $44{,}95$ \\
+		MiterSelf\_c432 & $328$ & $2\,623$ & $60\,041$ & Timeout & $279{,}73$ \\
+		MiterSelf\_c499 & $437$ & $4\,374$ & $60\,069$ & Timeout & $1\,853{,}19$ \\
+		Miter\_c499\_c1355 & $781$ & $6\,166$ & $60\,180$ & Timeout & $1\,723{,}69$ \\
+		MiterSelf\_c880 & $793$ & $5\,532$ & $60\,114$ & Timeout & $3\,293{,}14$ \\
+		MiterSelf\_c1355 & $1\,125$ & $7\,958$ & $60\,274$ & Timeout & $3\,139{,}56$ \\
+		MiterSelf\_c1908 & $1\,786$ & $11\,125$ & $25\,560$ & ERROR & $3\,374{,}42$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die neun unerfüllbaren Miter-Instanzen. Der Referenzsolver löst alle korrekt als UNSAT.}
+	\label{tab:exp_miter}
+\end{table}
+
+Der Subgraph-SAT-Solver löst nur die drei kleinsten, jeweils korrekt als \texttt{UNSAT}; fünf Instanzen laufen in das Zeitlimit, \texttt{MiterSelf\_c1908} endet mit \texttt{ERROR} (zu erwarten bei $11\,125$ Literalen). Das einzige \texttt{UNSAT}, das die Reduktionskette (Korollar~\ref{kor:kette}) auf größeren Formeln hätte liefern müssen, bleibt damit unbelegt. Die Mediane des Referenzsolvers sind nicht streng nach Gate-Anzahl geordnet (c880: $3{,}29$\,s über c1355: $3{,}14$\,s) und stützen sich auf unterschiedlich viele Läufe ($7$ bis $30$).
+
+Bei vergleichbarer Literalzahl ist der Unterschied zwischen erfüllbaren und unerfüllbaren Instanzen groß: \texttt{MiterSelf\_c432} ($2\,623$ Literale) erreicht das Zeitlimit, während c880 ($2\,571$ Literale) nach $2{,}17$\,s gelöst wird, mindestens $27{,}7$-mal schneller. Aus den Daten lässt sich nicht entscheiden, ob das an der Unerfüllbarkeit liegt oder an der Struktur der Miter-Formeln, denn beides ändert sich gleichzeitig; die Miter von c499, c880, c1355 und c1908 enthalten Klauseln mit $26$ bis $33$ Literalen, die ISCAS-Formeln höchstens $10$.
+
+\subsection{Vergleich der beiden Solver}
+\label{sec:exp_vergleich_solver}
+
+Bei den $24$ Instanzen mit höchstens $392$ Literalen ist der Subgraph-SAT-Solver jeweils schneller (Quotient $\tilde t_{\mathrm{SG}}/\tilde t_{\mathrm{Ref}}$ zwischen $0{,}15$ bei c3 und c17 und $0{,}94$ bei $d=10$). Ab $409$ Literalen ist er in allen Fällen langsamer: $1{,}35$ bei $d=12$, $1{,}19$ bei \texttt{MiterSelf\_TargetAND\_m20}, $6{,}0$ bei $m=100$, $7{,}2$ bei c432, $21{,}2$ bei c499, $45{,}5$ bei c880, $80{,}8$ bei c1355, $188{,}2$ bei c1908 und $291{,}5$ bei c2670, dem größten Quotienten einer gelösten Instanz. Die Timeouts entsprechen Quotienten von mindestens $18{,}3$ bis mindestens $214{,}6$. Die Kreuzung bei rund $400$ Literalen ist vor allem ein Effekt der Startkosten ($8{,}43$ gegen $56{,}18$\,ms) und hängt an der Wahl eines Python-Programms als Referenz. Sie besagt nicht, dass der Subgraph-SAT-Solver für kleine Formeln den besseren Algorithmus hat, und sie sagt nichts über MiniSat oder CaDiCaL.
+
+\section{Vergleich der beiden Reihen}
+\label{sec:exp_vergleich_reihen}
+
+Die erste Reihe hatte vermutet, die konstanten Laufzeiten seien ein Messartefakt aus Prozessstart und Zeitauflösung. Die neue Version stützt das in drei Punkten: Mit Nanosekundenauflösung liegen die Mediane nicht mehr auf den Zeittakten bei $15{,}625$ und $31{,}25$\,ms (die Einzelläufe fehlen im Zwischenstand, die Aussage betrifft nur Mediane); die Basislinie von $8{,}43$\,ms liegt in der Größenordnung der kleinsten Messwerte, und erst darüber steigen die Mediane; und bei größeren Instanzen wächst die Laufzeit des Subgraph-SAT-Solvers deutlich. Die in der ersten Reihe beobachtete Unabhängigkeit von der Instanzgröße war demnach keine Eigenschaft des Solvers. Außerdem liefert der Subgraph-SAT-Solver bei kleinen und mittleren Instanzen ein Ergebnis, das mit dem Referenzsolver übereinstimmt; die erste Reihe hatte keines erfasst. Ein absoluter Vergleich der Zeiten ist wegen der anderen Formeln und der undokumentierten Umgebung nicht möglich.
+
+\section{Was die Messungen für diese Arbeit bedeuten}
+\label{sec:exp_bedeutung}
+
+Dieser Abschnitt trennt, was die Experimente stützen, von dem, was sie nicht stützen, und verbindet sie mit den Befunden der Arbeit.
+
+\paragraph{Was die neuen Daten stützen.}
+\begin{itemize}
+	\item Die Messung enthält Skalierungsinformation: Der Median wächst bei Target-AND-Random um den Faktor $4{,}1$ zwischen $27$ und $54$ Gates, bei ISCAS'85 um mehr als drei Größenordnungen zwischen c17 und c2670. Laufzeiten ab etwa $20$\,ms werden von der Basislinie nicht mehr dominiert.
+	\item Im gemessenen Bereich wächst die Zeit näherungsweise quadratisch in der Literalzahl ($2{,}08\pm0{,}07$).
+	\item Soweit Ergebnisse vorliegen, sind sie korrekt: Alle $33$ gemeinsam entschiedenen Instanzen stimmen überein, alle bekannten Antworten werden getroffen.
+	\item Bei kleinen Instanzen ist kein Unterschied zwischen SAT und UNSAT erkennbar.
+\end{itemize}
+
+\paragraph{Was sie nicht stützen.}
+\begin{itemize}
+	\item \emph{Keine Aussage über die Schranke $\Theta(n^3)$.} Der Exponent $2{,}08$ gilt für die Literalzahl und die ganze Pipeline aus Reduktion, Datei-I/O und externem Prozess, nicht für den Subgraph Algorithmus allein, auf dessen Kern sich die Schranke bezieht (Satz~\ref{satz:paar} und Kapitel~\ref{chap:solver}). Das Framework sieht nur die Außenfläche des Solvers; Laufzeiten des Algorithmus, der Reduktion und des Prozesses sind nicht getrennt.
+	\item \emph{Keine Aussage über etablierte SAT-Solver.} Der Referenzsolver ist ein Python-Programm ohne Anspruch auf Geschwindigkeit.
+	\item \emph{Keine Aussage über die Ursache der \texttt{ERROR}- und Timeout-Läufe.} Rückgabecode, Fehlermeldung und Speicherverbrauch liegen im Zwischenstand nicht vor.
+	\item \emph{Keine Aussage über die Streuung}: Es gibt nur Mediane. Unterschiede von wenigen Millisekunden, etwa die Nicht-Monotonie bei $d=8$ und $d=9$, lassen sich nicht vom Rauschen trennen.
+	\item \emph{Keine Skalierung bis $10^5$ Gates.} Die größte gelöste Instanz hat $1\,193$ Gates.
+\end{itemize}
+
+\paragraph{Verbindung zu den Befunden.} Die Experimente berühren drei Befunde aus Kapitel~\ref{chap:befunde}. Erstens B2: Der Exit-Code $20$ des Solvers ist mehrdeutig. Das Framework der neuen Version umgeht das, indem es die Zeile \texttt{Status:} vor dem Code auswertet; die erste Reihe zeigt, was geschieht, wenn man weder Code noch Ausgabe richtig liest. Zweitens die Fehlerklassen des Solvers (Kapitel~\ref{chap:solver}): Dass der Subgraph-SAT-Solver ab $10\,487$ Literalen mit \texttt{ERROR} endet, ist von außen als Fehler des Solver-Prozesses sichtbar, die Ursache liegt in der Reduktion oder im Adapter, die das Framework nicht sieht. Drittens: Die Arbeit des Frameworks nennt weder das benutzte Subgraph-Programm noch den Modus (\texttt{SUBGRAPH\_MODE}, Tabelle~\ref{tab:adapter_env}) noch eine Solver-Version. Ein Lauf im Modus \texttt{heuristic} misst aber einen anderen Algorithmus als einer im Modus \texttt{exact}; ohne diese Angaben ist die Messreihe nicht reproduzierbar im Sinn dieser Arbeit.
+
+\paragraph{Eigene Abschätzung (nicht geprüft).} Bei $L=10\,487$ Literalen gibt es höchstens $L^2/2\approx5{,}5\cdot10^{7}$ Literalpaare, also eine Adjazenzmatrix mit bis zu etwa $1{,}1\cdot10^{8}$ Einträgen. Wie viel Speicher das je nach Darstellung und Normalisierung auf drei Literale je Klausel belegt, wurde nicht nachgerechnet; die Rechnung macht lediglich plausibel, dass die Grenze mit dem Speicher der Maschine zusammenhängen \emph{kann}, und ersetzt keine Messung des Spitzenspeichers.
+
+\paragraph{Gültigkeitsbedrohungen.}
+\begin{itemize}
+	\item \emph{Intern:} ein Kern für Solver und Messprozess; die Basislinie des Referenzsolvers hat $s=14{,}63$\,ms, Mediane unter etwa $70$\,ms sind nicht unterscheidbar; die Basislinie wurde nur einmal gemessen.
+	\item \emph{Konstrukt:} gemessen wird die Wallclock-Zeit eines Prozesses einschließlich Start, nicht die solverinterne Zeit; Nettozeiten sind Differenzen von Medianen.
+	\item \emph{Extern:} Target-AND ist ein einfacher AND-Baum, die Random-Instanzen sind klein, ISCAS'85 ist für moderne SAT-Solver klein; die Ausgangsbedingung betrifft nur den ersten Ausgang.
+	\item \emph{Umgebung:} eine virtuelle Maschine mit einem Kern, $3{,}9$\,GiB Speicher ohne Swap und \texttt{-O2} statt \texttt{-O3 -march=native}.
+	\item \emph{Unvollständiger Lauf:} Die $44$ ausgewerteten Instanzen sind vollständig, der Datensatz ist ein Zwischenstand.
+\end{itemize}
+
+\section{Reproduktion und offene Punkte}
+\label{sec:exp_repro}
+
+Die Auswertung der neuen Version erzeugt das Skript \texttt{src/paper\_analysis\_v2.py} aus den Dateien unter \texttt{src/results/}: der Zwischenstand-CSV, der Konsolenausgabe mit den Basislinien und der Hardware-Beschreibung. Es berechnet die Struktur der Instanzen mit den Generatoren neu, prüft sie gegen die gemessenen Gate-Zahlen und schreibt alle im Text genannten Kennzahlen nach \texttt{summary\_v2.json}. Ein vollständiger neuer Lauf startet mit \texttt{python -m src.run\_experiments --preset full --solver-path <Pfad> --with-reference}. Der Code und die Rohdaten sind im Repository des Frameworks verfügbar (Tabelle~\ref{tab:repos}).
+
+Fünf Punkte sind offen. Erstens muss das Full-Preset vollständig wiederholt werden, mit allen Ergebnisdateien und Rückgabecodes, und es ist zu klären, warum der Lauf bei \texttt{TargetAND\_m10000} abbrach. Zweitens ist die Ursache der \texttt{ERROR}-Läufe ab $10\,487$ Literalen zu untersuchen (Rückgabecode, Fehlermeldung, Spitzenspeicher) und \texttt{TargetAND\_m10000} sowie \texttt{TargetAND\_m50000} auf einer Maschine mit mehr Speicher zu messen. Drittens ist der Solver mit CMake (\texttt{-O3 -march=native}) zu bauen und seine Version festzuhalten. Viertens ist der Referenzsolver durch MiniSat oder CaDiCaL zu ergänzen. Fünftens braucht es mehr Messpunkte zwischen $1\,000$ und $10\,000$ Literalen (etwa Target-AND mit $m=200$ bis $800$), um den Exponenten an einer Instanzfamilie mit einem Parameter zu prüfen, sowie Instanzen mit gleicher Literalzahl und unterschiedlicher Klausellänge, um den Einfluss der langen Miter-Klauseln von dem der Unerfüllbarkeit zu trennen. Kapitel~\ref{chap:ausblick} greift diese Punkte auf.
+
+\chapter{Vergleich der Kopplungsarten}
+\label{chap:vergleich}
+
+\section{Vier Gestaltungsprinzipien}
+
+\begin{itemize}
+	\item \textbf{Korrektheit:} Jede Kopplung muss die Aussage des Ursprungs bewahren; Abweichungen müssen bekannt und geprüft sein.
+	\item \textbf{Isolierung:} Ein Projekt soll nur die Schnittstelle kennen, die es braucht.
+	\item \textbf{Leistung:} Die Kopplung darf den Rechenkern nicht überdecken.
+	\item \textbf{Erweiterbarkeit:} Neue Funktionen im Kern dürfen bestehende Nutzer nicht stören.
+\end{itemize}
+
+\section{Die Kopplungsarten nebeneinander}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.5cm}L{2.0cm}L{3.0cm}L{3.0cm}Y@{}}
+		\toprule
+		Kopplungsart & Beispiele & Aufrufkosten & Stärke & Schwäche \\
+		\midrule
+		Bibliothek im Prozess (\texttt{ctypes}) & \W{7}, \W{8} & $\approx 0{,}018$\,ms & schnell & ABI, Compiler, Bauzwang \\
+		Python-Import & \W{6} & Funktionsaufruf & einfach & Laufzeit der Python-Fassung \\
+		Eigene Neuimplementierung & \W{9}, \W{10} & Funktionsaufruf & keine Bauabhängigkeit & Pflicht zu Differenzialtests \\
+		Prozess mit Dateien & \W{5}, \W{14}, \W{15} & $\approx 3{,}4$\,ms & klare Trennung, austauschbar & Textprotokoll, Zeitlimit \\
+		Prozess mit stdin/stdout & \W{4}, \W{17} & Prozessstart + JSON & einfach zu testen & Kodierung je Vergleich \\
+		Begriffliche Übernahme & \W{11}, \W{18} & keine Vergleiche & größter Gewinn & nur für diese Relation \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Kopplungsarten. Der Prozessaufruf des Adapters kostet nach eigener Messung $3{,}41$\,ms, der In-Prozess-Aufruf $0{,}0185$\,ms, also etwa das $184$-Fache (Kapitel~\ref{chap:pruefung}).}
+	\label{tab:kopplungen}
+\end{table}
+
+\section{Bewertung}
+
+Keine Kopplungsart ist überlegen; entscheidend ist, was die Anwendung braucht. Gen-DB vergleicht in der Größenordnung von $10^5$ bis $10^6$ Paaren je Suche; dort lohnt die Bibliothekskopplung, und die Kosten von $3{,}4$\,ms je Prozessaufruf wären untragbar. Der Solver braucht dagegen einen Aufruf je Formel; $3{,}4$\,ms sind klein gegenüber der Suche, und die Prozessgrenze erlaubt den Austausch des Orakels und eine Zeitüberwachung. Der größte Gewinn stammt aber aus einer Wiederverwendung der \emph{Idee}: Der Paarindex (\W{11}) ersetzt $\approx 20\,000$ Vergleiche je Anfrage durch einige Listenzugriffe.
+
+Auffällig ist, dass die Stärken sich ausschließen: Schnelligkeit (Bibliothek) und Austauschbarkeit (Prozess) lassen sich nicht in derselben Kopplung haben. Der Solver profitiert davon, dass sein Orakel nur zwei Dateien und einen Exit-Code umfasst; Gen-DB profitiert davon, dass der Wrapper nur \texttt{int}-Felder austauscht. In beiden Fällen ist die Schnittstelle sehr schmal, und das ist die eigentliche Voraussetzung für die Wiederverwendung.
+
+\chapter{Laden von C/C++-Bibliotheken: zwei Verfahren und ein einheitliches Konzept}
+\label{chap:laden}
+
+Kapitel~\ref{chap:vergleich} hat Kopplungsarten verglichen und \emph{Bibliothek im Prozess} als schnellste gefunden (\W{7}, \W{8}). Dieses Kapitel betrachtet den Preis dieser Kopplung: Eine C/C++-Bibliothek muss von Python \emph{gefunden}, \emph{gebaut}, \emph{geladen} und \emph{geprüft} werden, und das geschieht auf jedem Betriebssystem anders. Zwei Projekte der Kette lösen dieselbe Aufgabe auf verschiedene Weise: Gen-DB (Kapitel~\ref{chap:gendb}) und \repo{subgraph-sat-solver-econ}, das den SAT-Solver als Bibliothek in Python nutzt. Das Kapitel beschreibt beide Verfahren als praktische Anwendung (Abschnitte~\ref{sec:laden_gendb} bis~\ref{sec:laden_vergleich}) und stellt danach das Konzept eines \emph{einheitlichen Ladeverhaltens} vor (Abschnitt~\ref{sec:sl}), das die Unterschiede an einer Stelle vereinheitlichen soll. Das Konzept ist ein Diskussionsentwurf und in keinem der beiden Projekte umgesetzt.
+
+\section{Ausgangslage: ein Konzept, drei Namen}
+\label{sec:laden_ausgangslage}
+
+Dasselbe Konzept, eine zur Laufzeit ladbare Bibliothek, heißt je nach Betriebssystem \texttt{.dll}, \texttt{.so} oder \texttt{.dylib}. Dahinter stehen drei Binärformate, drei Lader und drei Regeln dafür, welche Funktionen nach außen sichtbar sind (Tabelle~\ref{tab:laden_os}). Wer Software für mehrere Systeme ausliefert, muss alles dreimal bauen, testen und dokumentieren.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{2.9cm}L{3.5cm}L{3.5cm}Y@{}}
+		\toprule
+		Aspekt & Windows & Linux & macOS \\
+		\midrule
+		Dateiendung & \texttt{.dll} & \texttt{.so} (oft \texttt{.so.1.2.3}) & \texttt{.dylib} (für Plug-ins \texttt{.so}) \\[0.3em]
+		Namenspräfix & keines (MSVC) oder \texttt{lib} (MinGW) & \texttt{lib} & \texttt{lib} \\[0.3em]
+		Binärformat & PE/COFF & ELF & Mach-O \\[0.3em]
+		Lade-Aufruf & \texttt{LoadLibrary} & \texttt{dlopen} & \texttt{dlopen} \\[0.3em]
+		Symbolsuche & \texttt{GetProcAddress} & \texttt{dlsym} & \texttt{dlsym} \\[0.3em]
+		Sichtbarkeit (Standard) & nichts exportiert ohne das Attribut \texttt{dllexport} & alles sichtbar, außer als \texttt{hidden} markiert & alles sichtbar, außer als \texttt{hidden} markiert \\[0.3em]
+		Suche nach Abhängigkeiten & DLL-Suchpfad, \texttt{PATH}, \texttt{add\_dll\_directory} & \texttt{RPATH}, \texttt{RUNPATH}, \texttt{LD\_LIBRARY\_PATH} & \texttt{@rpath}, \texttt{@loader\_path}, \texttt{DYLD\_*} \\[0.3em]
+		Begleitdatei zum Linken & Importbibliothek \texttt{.lib} & die \texttt{.so} selbst & die \texttt{.dylib} selbst \\[0.3em]
+		Versionierung & Manifest, Dateiversion & SONAME, Symbolversionen & \texttt{install\_name}, Kompatibilitätsversion \\[0.3em]
+		Initialisierung & \texttt{DllMain} & \texttt{constructor}, \texttt{.init\_array} & \texttt{constructor}, \texttt{\_\_mod\_init\_func} \\[0.3em]
+		Fehlermeldung & \texttt{GetLastError} (Zahl) & \texttt{dlerror} (Text) & \texttt{dlerror} (Text) \\[0.3em]
+		Entladen & \texttt{FreeLibrary} & \texttt{dlclose} & \texttt{dlclose} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Was beim Laden einer gemeinsamen Bibliothek auf den drei Betriebssystemen verschieden ist.}
+	\label{tab:laden_os}
+\end{table}
+
+\section{Verfahren 1: Gen-DB baut den Wrapper beim ersten Gebrauch}
+\label{sec:laden_gendb}
+
+Gen-DB bekommt von \repo{csubgraph} eine \emph{statische} Bibliothek (\texttt{libsubgraphlib.a}). Python kann ein Archiv nicht laden. Gen-DB (\texttt{csubgraph\_native.py}) macht deshalb aus Archiv und einem kleinen C-Wrapper (\texttt{csubgraph\_shim.cpp}) \emph{zur Laufzeit} eine gemeinsame Bibliothek und lädt diese mit \texttt{ctypes}. Der Weg von der Einstellung bis zum Aufruf hat zehn Schritte; Abbildung~\ref{abb:laden_gendb} zeigt den Fluss.
+
+\begin{enumerate}
+	\item \textbf{Einstellung.} Die Umgebungsvariable \texttt{CSUBGRAPH\_LIB\_PATH} (aus der \texttt{.env}, über Pydantic als \texttt{Config.csubgraph\_lib\_path}) zeigt auf die \texttt{.a}-Datei oder auf einen Ordner. Ist sie leer, wird Python benutzt.
+	\item \textbf{Auffinden} (\texttt{find\_static\_library}). Eine Datei gilt unmittelbar; bei einem Ordner werden \texttt{.}, \texttt{build}, \texttt{build/Release} und \texttt{Release} der Reihe nach nach \texttt{libsubgraphlib.a} durchsucht.
+	\item \textbf{Inhalt prüfen} (nur Multi-Omics). Eine Textsuche im Archiv prüft, ob die Klasse \texttt{MultiOmics} enthalten ist (\texttt{\_has\_multiomics}). Fehlt sie, bleibt der Einzelvergleich nutzbar, und nur Multi-Omics fällt auf Python zurück.
+	\item \textbf{Header finden.} Die Header liegen neben dem Archiv oder eine Ebene darüber (auch \texttt{include/}); sonst nimmt Gen-DB die mitgelieferte Kopie unter \texttt{backend/native/}.
+	\item \textbf{Cache-Schlüssel.} Ein SHA-256-Wert über Archiv, Wrapper-Quelle, Header und ABI-Version bestimmt den Dateinamen im Cache-Ordner (\texttt{GENDB\_NATIVE\_CACHE} oder ein Ordner im Temp-Verzeichnis). Existiert die Datei, wird nichts gebaut.
+	\item \textbf{Compiler finden.} In dieser Reihenfolge: \texttt{CXX}, \texttt{g++}, \texttt{c++}, \texttt{clang++}. Fehlt jeder, ist die Bibliothek nicht nutzbar.
+	\item \textbf{Bauen.} Ein Aufruf mit Zeitlimit von $300$\,s (Listing~\ref{lst:gendb_build}); das Ergebnis entsteht in einer Temporärdatei.
+	\item \textbf{Atomar umbenennen} (\texttt{os.replace}). Parallel startende Worker laden so nie eine halbe Datei; war ein anderer Prozess schneller und hat die Datei unter Windows schon geladen, wird die eigene Temporärdatei verworfen.
+	\item \textbf{Laden und Version prüfen.} \texttt{ctypes.CDLL}, dann \texttt{csub\_abi\_version()}; weicht der Wert von der erwarteten Version ab, ist die Bibliothek nicht nutzbar.
+	\item \textbf{Fehlerbehandlung.} Jeder Fehler in den Schritten 2 bis 9 wird als \texttt{NativeLibraryError} gemeldet; der Executor schreibt eine Warnung ins Log und benutzt das Python-Paket (Abschnitt~\ref{sec:gendb_fallbacks}).
+\end{enumerate}
+
+\begin{lstlisting}[language=bash, caption={Aufruf, mit dem Gen-DB den Wrapper baut (aus \texttt{build\_shared\_library}, gekuerzt; Linux)}, label={lst:gendb_build}]
+g++ -std=c++17 -O2 -fPIC -shared -I <header_dir> csubgraph_shim.cpp \
+    -Wl,--whole-archive libsubgraphlib.a -Wl,--no-whole-archive \
+    [-lgcov] -o <cache>/csubgraph_shim_<hash>.so
+# macOS:   statt whole-archive: -Wl,-force_load,libsubgraphlib.a
+# Windows: ohne -fPIC; mit -static-libgcc -static-libstdc++ -static
+\end{lstlisting}
+
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+		s/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=5.6cm, minimum height=0.8cm, inner sep=3pt},
+		d/.style={draw=accentred, rounded corners=2pt, fill=white, align=center, text width=3.2cm, minimum height=0.8cm, inner sep=3pt}]
+		\node[s] (a) at (0,0) {\texttt{CSUBGRAPH\_LIB\_PATH} lesen};
+		\node[s] (b) at (0,-1.5) {\texttt{libsubgraphlib.a} suchen, Inhalt prüfen};
+		\node[s] (c) at (0,-3.0) {Cache-Schlüssel (SHA-256) bilden};
+		\node[s] (e) at (0,-4.5) {Compiler suchen und Wrapper linken};
+		\node[s] (f) at (0,-6.0) {\texttt{os.replace}, \texttt{ctypes.CDLL}, \texttt{csub\_abi\_version()}};
+		\node[s] (g) at (0,-7.5) {Aufruf \texttt{csub\_compare(\ldots)} je Vergleich};
+		\node[d] (h) at (6.0,-3.0) {Cache-Treffer: Bauen entfällt};
+		\node[d] (i) at (6.0,-6.0) {Fehler: Warnung, Python-Fallback};
+		\draw[->] (a)--(b); \draw[->] (b)--(c); \draw[->] (c)--(e); \draw[->] (e)--(f); \draw[->] (f)--(g);
+		\draw[->, dashed] (c.east)--(h.west);
+		\draw[->, dashed] (h.south) |- (f.east);
+		\draw[->, dashed] (e.east) -| ([xshift=-0.4cm]i.north);
+		\draw[->, dashed] (f.east)--(i.west);
+	\end{tikzpicture}
+	\caption{Ladevorgang in Gen-DB. Durchgezogen: Normalfall beim ersten Gebrauch; gestrichelt: Cache-Treffer und Fehlerweg.}
+	\label{abb:laden_gendb}
+\end{figure}
+
+Zwei Eigenschaften sind für den Vergleich wichtig. Erstens wird die Auswahl zwischen C++ und Python je Prozess \emph{einmal} getroffen (\texttt{\_get\_native}, \texttt{\_native\_resolved}), und der Executor löst sie im Hauptprozess vor dem Start der Worker auf, damit nicht alle Worker gleichzeitig den Bau anstoßen (Schritt~6 in Abbildung~\ref{abb:sequenz}). Zweitens enthält der Wrapper selbst Plattformcode: Das Makro \texttt{CSUB\_EXPORT} ist unter Windows \texttt{extern "C" \_\_declspec(dllexport)} und sonst \texttt{extern "C" \_\_attribute\_\_((visibility("default")))}. Der Vertrag ist schmal: \texttt{int}-Felder, ein Fehlerpuffer von $512$ Byte und je eine Versionsfunktion für Einzelvergleich und Multi-Omics.
+
+\section{Verfahren 2: subgraph-sat-solver-econ lädt eine fertig gebaute Bibliothek}
+\label{sec:laden_econ}
+
+\repo{subgraph-sat-solver-econ} (Python) nutzt den C++-Solver als Bibliothek. Der Aufbau ist ein anderer: Hier ist die \emph{gemeinsame} Bibliothek selbst das Bauergebnis von CMake, und Python lädt nur noch (\texttt{src/native.py}). Der Solver (\texttt{Cnf.cpp}, \texttt{Reduction.cpp}, \texttt{SubgraphSATSolver.cpp}) wird nicht kopiert, sondern als statische Bibliothek \texttt{satlib} aus einem Checkout eingebunden; der Shim \texttt{wsat\_shim} wird dagegen als \texttt{SHARED} gebaut.
+
+\begin{enumerate}
+	\item \textbf{Solver-Quellen finden} (\texttt{find\_solver\_dir}): Argument, Umgebungsvariable \texttt{SUBGRAPH\_SAT\_SOLVER\_DIR}, sonst \texttt{third\_party/subgraph-sat-solver}; maßgeblich ist das Vorhandensein von \texttt{SubgraphSATSolver.cpp}.
+	\item \textbf{Bauen mit CMake} (\texttt{build\_shim}): \texttt{cmake -S src/native -B build -DSUBGRAPH\_SAT\_SOLVER\_DIR=\ldots\ -DCMAKE\_BUILD\_TYPE=Release} und \texttt{cmake --build}. Das Bauen ist ein ausdrücklicher Schritt, den der Anwender auslöst; die Bibliothek wird nicht beim Laden gebaut. Die \texttt{CMakeLists.txt} setzt \texttt{CMAKE\_POSITION\_INDEPENDENT\_CODE ON} und blendet Symbole standardmäßig aus (\texttt{CMAKE\_CXX\_VISIBILITY\_PRESET hidden}); sichtbar sind nur die mit \texttt{WSAT\_API} markierten Funktionen. Es gibt bewusst kein \texttt{-march=native}, damit die Bibliothek übertragbar bleibt.
+	\item \textbf{Dateinamen je Plattform} (\texttt{library\_filename}): \texttt{wsat\_shim.dll} (Windows, MSVC), ersatzweise \texttt{libwsat\_shim.dll} (MinGW), \texttt{libwsat\_shim.dylib} (macOS), \texttt{libwsat\_shim.so} (sonst).
+	\item \textbf{Suchreihenfolge beim Laden} (\texttt{NativeLibrary.load}): übergebener Pfad, Umgebungsvariable \texttt{WSAT\_SHIM\_PATH}, \texttt{build/<Dateiname>}. Der erste vorhandene Pfad gewinnt; sonst \texttt{NativeUnavailable}.
+	\item \textbf{Abhängigkeiten unter Windows.} Alle Verzeichnisse aus \texttt{PATH} werden mit \texttt{os.add\_dll\_directory} in die DLL-Suche aufgenommen, damit abhängige DLLs (zum Beispiel die MinGW-Laufzeit) gefunden werden. Unter Linux ist das nicht nötig.
+	\item \textbf{Laden und Version prüfen.} \texttt{ctypes.CDLL}, dann \texttt{wsat\_abi\_version()} gegen \texttt{ABI\_VERSION}; bei Abweichung \texttt{NativeUnavailable}.
+	\item \textbf{Vertrag.} \texttt{wsat\_solve} nimmt dreizehn Argumente: Klauseln als flaches \texttt{int}-Feld (jede Klausel mit $0$ abgeschlossen), Variablenzahl, Pfad des Subgraph-Programms, Arbeitsverzeichnis, Zeitlimit, zwei Schalter, Modellpuffer, eine Statistikstruktur mit Phasenzeiten und einen Fehlerpuffer. Rückgabe: \texttt{SAT}, \texttt{UNSAT}, \texttt{UNKNOWN} oder \texttt{ERROR}. Jede SAT-Antwort wird in Python zusätzlich gegen die Formel geprüft.
+\end{enumerate}
+
+Das Verfahren hat \emph{keinen} stillen Rückfall: Wird nichts gefunden oder ist die ABI-Version falsch, löst Python eine Ausnahme aus und es läuft keine andere Implementierung. Das ist für Experimente sinnvoll, bei denen ein stiller Wechsel die Messung verfälschen würde (vgl.\ Kapitel~\ref{chap:experimente}). Auch hier enthält der Wrapper Plattformcode: \texttt{WSAT\_API} ist unter Windows \texttt{\_\_declspec(dllexport)} und sonst \texttt{\_\_attribute\_\_((visibility("default")))}. Eine zusätzliche Prozessgrenze liegt \emph{hinter} der Bibliothek: Der Solver startet das Subgraph-Programm als eigenen Prozess (\texttt{execl}); in \repo{subgraph-sat-solver-econ} ist das ein von \texttt{make\_launcher} erzeugtes Startskript für das Python-Orakel (\W{14}).
+
+\section{Gegenüberstellung der beiden Verfahren}
+\label{sec:laden_vergleich}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.2cm}YY@{}}
+		\toprule
+		Aspekt & Gen-DB & subgraph-sat-solver-econ \\
+		\midrule
+		Ausgangsform der C++-Bibliothek & statische \texttt{.a} aus CMake & statische \texttt{satlib}, in CMake zum \texttt{SHARED}-Ziel gelinkt \\[0.3em]
+		Wer erzeugt die gemeinsame Bibliothek? & Python, beim ersten Gebrauch (\texttt{g++} direkt) & CMake, ausdrücklicher Bauschritt (\texttt{build\_shim}) \\[0.3em]
+		Build-Werkzeug zur Laufzeit & nur Compiler (\texttt{CXX}, \texttt{g++}, \texttt{c++}, \texttt{clang++}) & \texttt{cmake} und Compiler \\[0.3em]
+		Dateiname & \texttt{csubgraph\_shim\_<hash>.so/.dll/.dylib} im Cache & \texttt{wsat\_shim.dll}, \texttt{libwsat\_shim.dll}/\texttt{.so}/\texttt{.dylib} in \texttt{build/} \\[0.3em]
+		Einstellung & \texttt{CSUBGRAPH\_LIB\_PATH} (Archiv oder Ordner, \texttt{.env}) & \texttt{WSAT\_SHIM\_PATH}, \texttt{SUBGRAPH\_SAT\_SOLVER\_DIR} \\[0.3em]
+		Wiederverwendung des Ergebnisses & Cache nach Hash aus Archiv, Quelle, Header, ABI & Bauordner; Neubau auf Anforderung \\[0.3em]
+		Gleichzeitiger Start mehrerer Prozesse & Temporärdatei, \texttt{os.replace}, Vorab-Laden im Hauptprozess & nicht vorgesehen (ein Prozess) \\[0.3em]
+		Sichtbarkeit der Symbole & \texttt{CSUB\_EXPORT} (nur Wrapper) & \texttt{WSAT\_API} und \texttt{hidden} als Standard \\[0.3em]
+		Abhängigkeiten unter Windows & statisches Linken der MinGW-Laufzeit & \texttt{add\_dll\_directory} für alle \texttt{PATH}-Einträge \\[0.3em]
+		Versionsprüfung & \texttt{csub\_abi\_version}, \texttt{csub\_omics\_abi\_version} & \texttt{wsat\_abi\_version} \\[0.3em]
+		Verhalten bei Fehlern & Warnung, Fallback auf Python & Ausnahme \texttt{NativeUnavailable}, kein Fallback \\[0.3em]
+		Eignung & Dienst mit vielen Vergleichen, soll auch ohne Compiler laufen & Experimente, bei denen die Implementierung feststehen muss \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die zwei Verfahren zum Laden einer C/C++-Bibliothek.}
+	\label{tab:laden_vergleich}
+\end{table}
+
+Beide Verfahren sind für ihren Zweck folgerichtig. Gen-DB soll auf Rechnern ohne passenden Compiler weiterlaufen und baut deshalb erst bei Bedarf, mit Rückfall. \repo{subgraph-sat-solver-econ} soll eine feste, bekannte Bibliothek messen und vermeidet jede stille Ersetzung. Der Unterschied liegt \emph{nicht} in der Fachaufgabe, sondern darin, wer baut, wann gebaut wird, wie der Name lautet und was bei Fehlern geschieht.
+
+Aufschlussreich ist, wie viel des Codes mit der Fachaufgabe nichts zu tun hat. In den beiden Projekten ist folgender Code reiner Plattformcode:
+
+\begin{itemize}
+	\item \texttt{library\_filename()} mit vier Dateinamen je nach \texttt{sys.platform} und der Sonderfall für MinGW in \texttt{build\_shim()};
+	\item der Windows-Block mit \texttt{os.add\_dll\_directory} für jeden \texttt{PATH}-Eintrag;
+	\item die Makros \texttt{CSUB\_EXPORT} und \texttt{WSAT\_API} mit ihren Windows- und Nicht-Windows-Zweigen;
+	\item die plattformabhängigen Linker-Schalter in Gen-DB (\texttt{-fPIC} nicht unter Windows, \texttt{--whole-archive} oder \texttt{-force\_load}, statische MinGW-Laufzeit);
+	\item die plattformabhängige Dateiendung (\texttt{.dll}, \texttt{.dylib}, \texttt{.so}) im Cache-Namen;
+	\item der Abschnitt der README von \repo{subgraph-sat-solver-econ} mit PowerShell-Syntax und vier möglichen Dateinamen.
+\end{itemize}
+
+Ein Befund aus Kapitel~\ref{chap:befunde} gehört in dieselbe Klasse: B1, das fehlende \texttt{-fPIC} in der \texttt{CMakeLists.txt} von \texttt{csubgraph}, führte unter Linux zu einem Linkfehler im Gen-DB-Wrapper (Lauf~8 in Tabelle~\ref{tab:pruefung}). Das ist ein Fehler im Plattformcode, nicht in der Fachlogik, und er tritt erst auf dem zweiten System auf. Das Konzept des folgenden Abschnitts zielt darauf, genau diese Klasse von Code und Fehlern an eine Stelle zu verlegen.
+
+\section{Das Konzept: eine einheitliche gemeinsame Bibliothek mit standardisiertem Ladeverfahren}
+\label{sec:sl}
+
+Dieser Abschnitt gibt das Konzept des einheitlichen Ladeverhaltens ausführlich wieder. Es liegt als Diskussionsentwurf vor (Markdown-Datei \texttt{unified-shared-library-proposal.md}, englisch; Gegenstand dieses Abschnitts ist eine deutsche, etwas ausführlichere Fassung desselben Inhalts). Anlass sind die beiden Projekte aus den Abschnitten~\ref{sec:laden_gendb} und~\ref{sec:laden_econ}. Der Entwurf schlägt eine \emph{einheitliche gemeinsame Bibliothek} mit der Dateiendung \texttt{.sl} (englisch \emph{shared library}) vor: eine Namenskonvention, eine Beschreibung des Containers, eine Regel für den Export von Funktionen und, vor allem, ein \emph{standardisiertes Ladeverfahren}.
+
+\subsection{Die Kernforderung}
+
+\begin{quote}
+	\textbf{Das Ladeverfahren muss durch Abstraktion und Standardisierung betriebssystemunabhängig werden.}
+\end{quote}
+
+Ein Programm soll auf Windows, Linux und macOS mit derselben Schnittstelle, derselben Suchreihenfolge, demselben Fehlermodell und demselben Lebenszyklus sagen können: \glqq lade die Bibliothek \texttt{wsat\_shim}, finde das Symbol \texttt{wsat\_solve} und rufe es auf\grqq. Alles Plattformspezifische liegt hinter einer festgelegten Schnittstelle und ist Aufgabe der Lader-Implementierung, nicht jedes einzelnen Projekts. Der Abschnitt erklärt, warum sich das lohnt, welche Teile sich vereinheitlichen lassen und welche nicht, und wie man in Stufen dorthin kommt.
+
+\subsection{Problemanalyse}
+
+\paragraph{Aufwand ohne Mehrwert.} Jedes Projekt, das eine native Bibliothek anbietet, muss je Plattform mindestens folgende Fragen lösen:
+
+\begin{enumerate}
+	\item \emph{Benennung:} Welcher Dateiname wird gesucht?
+	\item \emph{Export:} Wie wird eine Funktion sichtbar? Das verlangt Makros, \texttt{.def}-Dateien oder Sichtbarkeits-Schalter.
+	\item \emph{Suchpfade:} Wo liegen Abhängigkeiten, und wie wird das eingestellt?
+	\item \emph{Laufzeitbibliothek:} Wird die C++-Laufzeit statisch oder dynamisch gebunden, und wie kommt sie zum Anwender?
+	\item \emph{Bau:} Welcher Compiler, welche Schalter?
+	\item \emph{Test:} Läuft alles auf jedem System mit jeder Werkzeugkette?
+	\item \emph{Ladecode:} Welcher Aufruf, in welcher Reihenfolge, mit welcher Fehlerbehandlung?
+\end{enumerate}
+
+Das ist in jedem Projekt dieselbe Arbeit. Sie wird tausendfach wiederholt, und jede Wiederholung führt eigene Fehler ein.
+
+\paragraph{Vermeidbare Fehlerquellen.}
+
+\begin{itemize}
+	\item Eine Funktion ist unter Linux sichtbar, unter Windows aber nicht exportiert. Der Fehler zeigt sich erst auf dem zweiten System.
+	\item Eine DLL lässt sich unter Windows nicht laden, weil eine abhängige DLL nicht im Suchpfad liegt. Die Fehlermeldung nennt oft nur die angeforderte Datei, nicht die fehlende Abhängigkeit.
+	\item MinGW- und MSVC-Bibliotheken werden gemischt, und die C++-Laufzeiten passen nicht zusammen.
+	\item Dateien mit gleichem Namen haben verschiedene Bedeutung: Unter macOS ist \texttt{.so} ein Plug-in, \texttt{.dylib} eine Bibliothek.
+	\item Die Suchpfad-Semantik unterscheidet sich in Feinheiten (aktuelles Verzeichnis, \texttt{PATH}, \texttt{LD\_LIBRARY\_PATH}). Das führt zu \glqq läuft bei mir\grqq-Situationen und zu Sicherheitsproblemen.
+\end{itemize}
+
+\paragraph{Verständnis und Einstieg.} Für Einsteiger und Fachfremde, etwa Wissenschaftler, die einen Solver aus Python nutzen wollen, ist nicht ersichtlich, warum es drei Namen für dasselbe Konzept gibt. Der Lernaufwand betrifft das Betriebssystem statt der eigentlichen Aufgabe. In \repo{subgraph-sat-solver-econ} und in Gen-DB musste dafür ein eigener README-Abschnitt geschrieben werden.
+
+\paragraph{Abhängigkeit vom Betriebssystem.} Code, der eine Bibliothek lädt, kann nicht portabel sein, solange er den Dateinamen und den Lade-Aufruf kennen muss. Jede Abstraktion (\texttt{ctypes.CDLL}, \texttt{libloading}, \texttt{dlopen}-Hüllen) ist ein Hilfsmittel, das genau diese Lücke füllt. Dass es solche Hüllen in jeder Sprache gibt, belegt den Bedarf; jede legt aber ihre eigene Suchreihenfolge, ihre eigenen Fehlermeldungen und ihre eigenen Randfälle fest. \emph{Die Abstraktion existiert, aber sie ist nicht standardisiert.}
+
+\subsection{Ziele und Nichtziele}
+
+\paragraph{Ziele.}
+
+\begin{enumerate}
+	\item Eine Namenskonvention auf allen Systemen: \texttt{<Name>.sl}.
+	\item \textbf{Ein standardisiertes, betriebssystemunabhängiges Ladeverfahren}, festgelegt durch eine Spezifikation und nicht durch das Verhalten des darunterliegenden Systemladers.
+	\item Ein Exportmodell: ausdrücklich, auf Anforderung, auf allen Plattformen gleich.
+	\item Ein Metadatenblock mit ABI-Version, Name, Version und Abhängigkeiten.
+	\item Eine Suchpfad-Regel mit festgelegter Rangfolge.
+	\item Ein Fehlermodell mit maschinenlesbaren Codes und lesbaren Meldungen, die auch fehlende Abhängigkeiten benennen.
+	\item Gleichzeitiges Bestehen mit vorhandenen Bibliotheken (kein Austausch auf einen Schlag).
+\end{enumerate}
+
+\paragraph{Nichtziele.}
+
+\begin{enumerate}
+	\item Nicht: identischer Maschinencode, der auf jedem Betriebssystem und jeder CPU läuft (Abschnitt~\ref{sec:sl_einwaende}).
+	\item Nicht: PE, ELF oder Mach-O kurzfristig zu ersetzen.
+	\item Nicht: C++-ABIs zu standardisieren. Die stabile Grenze ist die \textbf{C-ABI}.
+\end{enumerate}
+
+\subsection{Die Kernanforderung im Einzelnen: ein betriebssystemunabhängiges Ladeverfahren}
+\label{sec:sl_kern}
+
+Eine einheitliche Dateiendung hilft, aber die eigentliche Vereinheitlichung muss im \emph{Verfahren} geschehen, mit dem eine Bibliothek gefunden, geprüft, geladen, initialisiert, abgefragt und freigegeben wird.
+
+\paragraph{Prinzip: Verhalten festlegen, nicht den Mechanismus.} Die Spezifikation legt fest, \emph{was in welcher Reihenfolge geschehen muss}, nicht, welcher Systemaufruf es ausführt. Eine konforme Implementierung darf unter Windows \texttt{LoadLibraryEx}, unter Linux und macOS \texttt{dlopen} oder einen eigenen Abbilder-Lader im Benutzerraum für ELF, PE und Mach-O verwenden. Der Aufrufer kann den Unterschied nicht erkennen. Das ist derselbe Gedanke wie bei einer POSIX-artigen Portabilitätsschicht, dem Modulsystem einer Sprachlaufzeit oder dem WebAssembly-Komponentenmodell: eine dünne, streng festgelegte Schnittstelle über uneinheitlichen Systemen.
+
+\paragraph{Schichtenarchitektur.} Abbildung~\ref{abb:sl_schichten} zeigt die Schichten. Alles Betriebssystemspezifische liegt im \emph{Plattformadapter}. Alles darüber ist auf jedem System gleich und lässt sich mit einer einzigen Konformitätssuite einmal testen.
+
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[font=\small,
+		l/.style={draw=mainblue, fill=lightgray, align=center, text width=11.4cm, minimum height=1.15cm, inner sep=3pt},
+		hl/.style={draw=accentred, very thick, fill=white, align=center, text width=11.4cm, minimum height=1.15cm, inner sep=3pt}]
+		\node[l]  (a) at (0,0)    {\textbf{Anwendung / Sprachanbindung} (Python, Rust, Java, C++ \ldots)};
+		\node[hl] (b) at (0,-1.45) {\textbf{Standard Loader Interface (SLI)} -- festgelegt, einheitlich\\\texttt{sl\_open} \ \texttt{sl\_symbol} \ \texttt{sl\_close} \ \texttt{sl\_error} \ \texttt{sl\_info}};
+		\node[l]  (c) at (0,-2.9) {\textbf{Lader-Kern:} Auflösung, Prüfung, Lebenszyklus, Fehler\\(Referenzimplementierung, überall dasselbe Verhalten)};
+		\node[l]  (d) at (0,-4.35) {\textbf{Plattformadapter} (einziger betriebssystemspezifischer Code)\\Windows: \texttt{LoadLibraryEx}/\texttt{AddDllDirectory} \quad Linux: \texttt{dlopen}/\texttt{dlsym} \quad macOS: \texttt{dlopen}/\texttt{dlsym}};
+		\node[l]  (e) at (0,-5.8) {\textbf{Natives Bibliotheksformat:} PE / ELF / Mach-O (innerhalb der \texttt{.sl})};
+	\end{tikzpicture}
+	\caption{Schichtenarchitektur des standardisierten Laders. Rot umrandet: die festgelegte Schnittstelle, auf die sich Anwendungen verlassen.}
+	\label{abb:sl_schichten}
+\end{figure}
+
+\paragraph{Das standardisierte Ladeverfahren.} Ein konformer Lader führt auf jeder Plattform die folgenden neun Schritte in dieser Reihenfolge aus (Abbildung~\ref{abb:sl_ablauf}).
+
+\begin{enumerate}
+	\item \textbf{Namensauflösung.} Eingabe ist ein logischer Name (\texttt{wsat\_shim}) oder ein expliziter Pfad. Der Lader hängt bei Bedarf \texttt{.sl} an. Plattform-Präfixe (\texttt{lib}) und -Suffixe (\texttt{.dll}, \texttt{.so.1}) sind nie Teil des logischen Namens.
+	\item \textbf{Auffinden.} Der Lader durchläuft die Suchreihenfolge aus Abschnitt~\ref{sec:sl_suche} und hält beim ersten Treffer an. Das Ergebnis des Durchlaufs (alle geprüften Kandidaten) bleibt für die Diagnose erhalten.
+	\item \textbf{Container-Prüfung.} Der Lader liest den \texttt{.sl}-Kopf und prüft Kennung, Container-Version, Zielplattform, CPU-Architektur und ABI-Version. Eine Abweichung ergibt einen eigenen Fehler (Abschnitt~\ref{sec:sl_fehler}), \emph{bevor} Code abgebildet wird.
+	\item \textbf{Auflösung der Abhängigkeiten.} Die Abhängigkeitsliste der Metadaten wird rekursiv mit derselben Suchreihenfolge aufgelöst, wobei das Verzeichnis der anfragenden Bibliothek ein fester Suchursprung ist. Zyklen werden erkannt und gemeldet. Alle Abhängigkeiten werden aufgelöst, \emph{bevor} die Bibliothek selbst abgebildet wird, damit eine fehlende Abhängigkeit zu einem Fehler führt, der sie benennt.
+	\item \textbf{Abbilden.} Der Plattformadapter bildet die native Nutzlast mit der Systemfunktion oder dem eigenen Abbilder ein.
+	\item \textbf{Initialisierung.} In festgelegter Reihenfolge: zuerst die Abhängigkeiten, dann die Bibliothek. Der optionale Einstieg \texttt{sl\_init} wird je Prozess und Handlegruppe genau einmal aufgerufen. Plattformhaken (\texttt{DllMain}, \texttt{constructor}) werden so gekapselt, dass Reihenfolge und Wiedereintritts-Regeln überall gleich beobachtbar sind.
+	\item \textbf{Bindung der Exporttabelle.} Für \texttt{sl\_symbol} sind nur die in den Metadaten als exportiert markierten Symbole sichtbar. Die Suche nach einem nicht exportierten Symbol schlägt auf allen Plattformen fehl, auch dort, wo das native Format es sichtbar gemacht hätte.
+	\item \textbf{Rückgabe des Handles.} Der Aufrufer erhält ein undurchsichtiges Handle. Handles sind referenzgezählt; wer dieselbe Bibliothek zweimal öffnet, erhält dieselbe zugrunde liegende Instanz.
+	\item \textbf{Freigabe.} \texttt{sl\_close} verringert den Zähler. Bei Null läuft \texttt{sl\_fini} (falls definiert), die Bibliothek wird entladen und Ressourcen werden freigegeben, in umgekehrter Abhängigkeitsreihenfolge.
+\end{enumerate}
+
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+		s/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=left, text width=6.6cm, minimum height=0.75cm, inner sep=3pt},
+		e/.style={draw=accentred, rounded corners=2pt, fill=white, align=left, text width=4.6cm, minimum height=0.75cm, inner sep=3pt, font=\footnotesize}]
+		\node[s] (n1) at (0,0)     {\textbf{1} Name \texttt{wsat\_shim} $\to$ \texttt{wsat\_shim.sl}};
+		\node[s] (n2) at (0,-1.2)  {\textbf{2} Suchreihenfolge durchlaufen, erster Treffer};
+		\node[s] (n3) at (0,-2.4)  {\textbf{3} Container prüfen (Kennung, Plattform, CPU, ABI)};
+		\node[s] (n4) at (0,-3.6)  {\textbf{4} Abhängigkeiten rekursiv auflösen};
+		\node[s] (n5) at (0,-4.8)  {\textbf{5} Nutzlast über den Plattformadapter abbilden};
+		\node[s] (n6) at (0,-6.0)  {\textbf{6} Initialisieren (Abhängigkeiten zuerst, einmal)};
+		\node[s] (n7) at (0,-7.2)  {\textbf{7} Exporttabelle binden (nur erklärte Symbole)};
+		\node[s] (n8) at (0,-8.4)  {\textbf{8} Referenzgezähltes Handle zurückgeben};
+		\node[e] (e2) at (7.4,-1.2) {\texttt{SL\_ERR\_NOT\_FOUND}};
+		\node[e] (e3) at (7.4,-2.4) {\texttt{SL\_ERR\_INVALID\_CONTAINER}, \texttt{SL\_ERR\_ARCH\_MISMATCH}, \texttt{SL\_ERR\_ABI\_MISMATCH}};
+		\node[e] (e4) at (7.4,-3.6) {\texttt{SL\_ERR\_DEPENDENCY\_MISSING}, \texttt{SL\_ERR\_CYCLE}};
+		\node[e] (e6) at (7.4,-6.0) {\texttt{SL\_ERR\_INIT\_FAILED}};
+		\foreach \a/\b in {n1/n2,n2/n3,n3/n4,n4/n5,n5/n6,n6/n7,n7/n8}{\draw[->] (\a)--(\b);}
+		\draw[->, dashed] (n2.east)--(e2.west);
+		\draw[->, dashed] (n3.east)--(e3.west);
+		\draw[->, dashed] (n4.east)--(e4.west);
+		\draw[->, dashed] (n6.east)--(e6.west);
+	\end{tikzpicture}
+	\caption{Ablauf von \texttt{sl\_open}. Links der Normalfall, rechts (gestrichelt) die Fehlercodes, die an der jeweiligen Stelle auftreten können. Schritt~9, die Freigabe mit \texttt{sl\_close}, ist nicht eingezeichnet.}
+	\label{abb:sl_ablauf}
+\end{figure}
+
+\paragraph{Reihenfolge von Initialisierung und Freigabe.} Aus den Schritten~4, 6 und~9 folgt eine Eigenschaft, die man beweisen kann.
+
+\begin{satz}[Reihenfolge von Initialisierung und Freigabe]
+	\label{satz:sl_reihenfolge}
+	Sei der Abhängigkeitsgraph der beim Öffnen beteiligten Bibliotheken zyklenfrei. Dann ist die Initialisierungsreihenfolge eine topologische Ordnung des Graphen (Abhängigkeiten zuerst), und die Freigabereihenfolge ist deren Umkehrung. Insbesondere sind beim Aufruf von \texttt{sl\_init} einer Bibliothek alle ihre Abhängigkeiten initialisiert, und beim Aufruf von \texttt{sl\_fini} sind alle Bibliotheken, die von ihr abhängen, bereits freigegeben, ihre eigenen Abhängigkeiten aber noch abgebildet.
+\end{satz}
+
+\begin{proof}
+	Nach Schritt~4 sind alle Abhängigkeiten einer Bibliothek vor ihr aufgelöst, und nach Schritt~6 werden sie vor ihr initialisiert; das ist die Definition einer topologischen Ordnung, die bei Zyklenfreiheit existiert (bei einem Zyklus bricht Schritt~4 mit \texttt{SL\_ERR\_CYCLE} ab). Schritt~9 gibt in umgekehrter Reihenfolge frei. Ist $B$ von $A$ abhängig, steht in der Initialisierung $B$ vor $A$, in der Freigabe also $A$ vor $B$: Wer $B$ nutzt, ist freigegeben, bevor $B$ es wird.
+\end{proof}
+
+\paragraph{Suchreihenfolge.}
+\label{sec:sl_suche}
+Auf jeder Plattform gilt dieselbe Rangfolge; die Suche hält beim ersten Treffer an.
+
+\begin{enumerate}
+	\item der \textbf{explizite Pfad}, den der Aufrufer übergibt;
+	\item die \textbf{Umgebungsvariable \texttt{SL\_PATH}}; das Listentrennzeichen wird in der Spezifikation fest vorgegeben (nicht \texttt{;} auf einem System und \texttt{:} auf dem anderen), zum Beispiel \texttt{:} mit festgelegter Maskierung, oder alternativ über eine Listen-Schnittstelle;
+	\item das \textbf{Verzeichnis des anfragenden Moduls} (der Bibliothek oder des Programms, das \texttt{sl\_open} aufruft), einschließlich eines festgelegten Unterverzeichnisses wie \texttt{./sl/};
+	\item das \textbf{Anwendungsverzeichnis};
+	\item die \textbf{systemweiten Verzeichnisse}, die der Adapter je Plattform festlegt, und \emph{nur} diese.
+\end{enumerate}
+
+Auf allen Plattformen ausdrücklich ausgeschlossen:
+
+\begin{itemize}
+	\item Das \textbf{aktuelle Arbeitsverzeichnis} wird nie implizit durchsucht (verhindert DLL-Hijacking).
+	\item Plattformspezifische Variablen (\texttt{PATH}, \texttt{LD\_LIBRARY\_PATH}, \texttt{DYLD\_LIBRARY\_PATH}) werden für die Auflösung von \texttt{.sl} \emph{nicht} herangezogen. Das beseitigt eine ganze Klasse von Überraschungen und macht das Verhalten reproduzierbar.
+	\item Abhängigkeiten werden in derselben Reihenfolge gesucht wie die Bibliothek selbst, ohne plattformspezifische Ausnahmen. Der Bedarf an \texttt{os.add\_dll\_directory} entfällt.
+\end{itemize}
+
+Der zweite Punkt lässt sich als Eigenschaft fassen.
+
+\begin{definition}[Suchliste und Auflösung]
+	\label{def:sl_suchliste}
+	Für einen Aufruf \texttt{sl\_open}$(n,p)$ mit logischem Namen $n$ und optionalem explizitem Pfad $p$ ist die \emph{Suchliste} $S=(s_1,\ldots,s_k)$ die Folge der Verzeichnisse: $p$ (falls gegeben), die Einträge von \texttt{SL\_PATH}, das Verzeichnis des anfragenden Moduls (mit \texttt{./sl/}), das Anwendungsverzeichnis und die systemweiten Verzeichnisse des Adapters. Die \emph{Auflösung} ist der erste Eintrag $s_i$, in dem eine Datei \texttt{n.sl} liegt.
+\end{definition}
+
+\begin{satz}[Reproduzierbarkeit der Auflösung]
+	\label{satz:sl_repro}
+	Zwei Prozessumgebungen, die in $p$, \texttt{SL\_PATH}, Modulverzeichnis, Anwendungsverzeichnis, systemweiten Verzeichnissen und dem Dateibestand dieser Verzeichnisse übereinstimmen, liefern dieselbe Auflösung, unabhängig von \texttt{PATH}, \texttt{LD\_LIBRARY\_PATH}, \texttt{DYLD\_LIBRARY\_PATH} und dem Arbeitsverzeichnis.
+\end{satz}
+
+\begin{proof}
+	Nach Definition~\ref{def:sl_suchliste} ist $S$ eine Funktion nur der genannten Größen, und die Auflösung ist eine Funktion von $S$ und dem Dateibestand. Die ausgeschlossenen Variablen und das Arbeitsverzeichnis gehen in keine der beiden Funktionen ein.
+\end{proof}
+
+Der Satz ist bewusst schwach: Er sagt, dass die genannten Einflüsse \emph{ausgeschlossen} sind, nicht, dass der Lader fehlerfrei ist. Bei den heutigen Systemladern gilt eine solche Aussage nicht, weil dort \texttt{PATH}, \texttt{LD\_LIBRARY\_PATH} und das Arbeitsverzeichnis je nach Plattform in die Suche eingehen.
+
+\paragraph{Die standardisierte Programmierschnittstelle.}
+Eine kleine, sprachneutrale C-Schnittstelle bildet die normative Schnittstelle; Sprachanbindungen sind dünne Hüllen darüber (Listing~\ref{lst:sl_api}).
+
+\begin{lstlisting}[language=C, caption={Normative C-Schnittstelle des Standard Loader Interface}, label={lst:sl_api}]
+typedef struct sl_handle sl_handle;
+
+typedef enum {
+    SL_OK = 0,
+    SL_ERR_NOT_FOUND,          /* no candidate in the search order          */
+    SL_ERR_DEPENDENCY_MISSING, /* a declared dependency could not be found  */
+    SL_ERR_ARCH_MISMATCH,      /* wrong CPU architecture or platform target */
+    SL_ERR_ABI_MISMATCH,       /* incompatible ABI version                  */
+    SL_ERR_INVALID_CONTAINER,  /* corrupt or unknown container              */
+    SL_ERR_SYMBOL_NOT_FOUND,   /* symbol absent or not exported             */
+    SL_ERR_INIT_FAILED,        /* sl_init returned failure                  */
+    SL_ERR_CYCLE,              /* cyclic dependency                         */
+    SL_ERR_ACCESS_DENIED,      /* rejected by security policy               */
+    SL_ERR_INTERNAL            /* platform adapter failure                  */
+} sl_status;
+
+typedef struct {
+    sl_status   code;
+    const char *message;       /* human readable, stable wording            */
+    const char *failed_name;   /* the library or dependency that failed     */
+    const char *searched;      /* newline-separated list of paths tried     */
+    int         native_error;  /* original OS error code, for diagnostics   */
+} sl_error;
+
+sl_status sl_open  (const char *name_or_path, unsigned flags,
+                    sl_handle **out, sl_error *err);
+sl_status sl_symbol(sl_handle *h, const char *symbol,
+                    void **out, sl_error *err);
+sl_status sl_info  (sl_handle *h, /* name, version, abi, deps, path */ ...);
+sl_status sl_close (sl_handle *h, sl_error *err);
+\end{lstlisting}
+
+Die Sprachanbindungen sehen dann überall gleich aus. In Python:
+
+\begin{lstlisting}[language=Python, caption={Referenzanbindung in Python (Entwurf)}]
+import sl                              # reference binding
+lib = sl.open("wsat_shim")             # identical on Windows, Linux, macOS
+solve = lib.symbol("wsat_solve", argtypes=[...], restype=...)
+\end{lstlisting}
+
+Dem steht der heutige Code gegenüber, der eine Plattformunterscheidung, einen Pfadlauf und plattformspezifische Vorbereitung braucht, bevor das erste Symbol benutzt werden kann (Listing~\ref{lst:sl_vorher} in Abschnitt~\ref{sec:sl_anwendung}).
+
+\paragraph{Fehlermodell.}
+\label{sec:sl_fehler}
+Die Fehlerbehandlung ist heute einer der am wenigsten portablen Teile des Ladens: \texttt{GetLastError()} liefert eine Zahl, \texttt{dlerror()} einen freien Text, und beide lassen die eigentliche Ursache oft aus. Der Standard verlangt:
+
+\begin{itemize}
+	\item einen festen Satz von \textbf{Fehlercodes} (Listing~\ref{lst:sl_api}), die überall dasselbe bedeuten;
+	\item ein Feld \textbf{\texttt{failed\_name}}, das immer den tatsächlichen Verursacher nennt, also die fehlende Abhängigkeit und nicht nur die angeforderte Bibliothek;
+	\item ein Feld \textbf{\texttt{searched}} mit den geprüften Pfaden in der Reihenfolge der Suche;
+	\item den ursprünglichen Betriebssystemfehler, zur Fehlersuche erhalten in \textbf{\texttt{native\_error}};
+	\item Meldungen mit stabilem Wortlaut, damit sie dokumentiert und gesucht werden können.
+\end{itemize}
+
+Beispiel der beabsichtigten Diagnose:
+
+\begin{lstlisting}[caption={Beabsichtigte Diagnose bei einer fehlenden Abhaengigkeit}]
+SL_ERR_DEPENDENCY_MISSING: cannot load 'wsat_shim'
+  missing dependency: 'cryptosolver' (required >= 1.2)
+  searched:
+    /opt/app/sl/cryptosolver.sl
+    /opt/app/cryptosolver.sl
+    /usr/local/lib/sl/cryptosolver.sl
+\end{lstlisting}
+
+Zum Vergleich die Meldungen heute: In \repo{subgraph-sat-solver-econ} lautet die Fehlermeldung \glqq Bibliothek nicht ladbar: \ldots\grqq{} und nennt als mögliche Ursachen falsche Architektur, fehlende abhängige DLL oder \texttt{.so} und die MinGW-Laufzeit. Welche davon zutrifft, muss der Anwender selbst herausfinden. Gen-DB meldet nur \glqq Wrapper-Bibliothek nicht ladbar\grqq{} mit dem Text des Systems und fällt auf Python zurück; die Ursache steht nur im Log.
+
+\paragraph{Lebenszyklus und Threads.} Die Spezifikation legt Verhaltensweisen fest, die heute in Feinheiten abweichen:
+
+\begin{itemize}
+	\item \texttt{sl\_open} und \texttt{sl\_close} sind thread-sicher. Gleichzeitiges Öffnen derselben Bibliothek erzeugt \emph{eine} Instanz. (Gen-DB löst dasselbe Problem heute mit einer Temporärdatei und \texttt{os.replace}; Abschnitt~\ref{sec:laden_gendb}.)
+	\item Die Initialisierung läuft höchstens einmal und nie, während ein Lader-interner Lock gehalten wird, den Benutzercode wieder betreten könnte.
+	\item Die Initialisierung darf \texttt{sl\_open} nicht für eine Bibliothek aufrufen, die gerade initialisiert wird (Meldung \texttt{SL\_ERR\_CYCLE}). Das vermeidet die unter Windows bekannte Deadlock-Klasse des Lader-Locks.
+	\item Das Entladen, während Symbole noch benutzt werden, liegt in der Verantwortung des Aufrufers; der Lader garantiert aber auf jeder Plattform dieselbe Referenzzählung.
+\end{itemize}
+
+\paragraph{Standardisierter Symbolexport.}
+
+\begin{itemize}
+	\item \textbf{Standardmäßig versteckt.} Nur ausdrücklich markierte Symbole werden exportiert, über ein einheitliches Makro oder Attribut (\texttt{SL\_EXPORT}, später möglicherweise \texttt{[[sl::export]]}).
+	\item Das Build-Werkzeug übersetzt das in \texttt{\_\_declspec(dllexport)}, \texttt{\_\_attribute\_\_((visibility("default")))} oder eine Exportliste, sodass Projekte das nie selbst schreiben.
+	\item Die Liste der exportierten Symbole steht in den \texttt{.sl}-Metadaten und wird vom Lader durchgesetzt. Ein Symbol, das nicht in der Liste steht, ist unerreichbar, was auch immer das native Format sichtbar machen würde.
+	\item Die exportierte Schnittstelle ist eine \textbf{C-ABI} (\texttt{extern "C"}, Ganzzahltypen fester Breite). C++-Typen überschreiten die Grenze nicht.
+\end{itemize}
+
+Beide Projekte halten diese Regel bereits ein, jedes mit eigenem Mittel: Die Schnittstellen \texttt{csub\_compare} und \texttt{wsat\_solve} sind \texttt{extern "C"} mit \texttt{int}- und Zeigertypen (Abschnitte~\ref{sec:laden_gendb} und~\ref{sec:laden_econ}); nur der Mechanismus (Makro, \texttt{hidden}-Voreinstellung) ist verschieden.
+
+\paragraph{Konformitätstests.} Ein Standard ist nur so gut wie seine Testsuite. Das Vorhaben sollte eine \textbf{Konformitätssuite} mitliefern, die jede Lader-Implementierung, jeder Plattformadapter und jede Sprachanbindung bestehen muss. Sie deckt Suchreihenfolge, Auflösung von Abhängigkeiten, Fehlercodes, Lebenszyklus und die Durchsetzung des Exports ab. So wird gleiches Verhalten geprüft, statt es anzunehmen.
+
+\subsection{Das Format \texttt{.sl}}
+\label{sec:sl_format}
+
+\paragraph{Benennung.}
+
+\begin{itemize}
+	\item Dateiendung \textbf{\texttt{.sl}} auf allen Systemen.
+	\item Namensregel \texttt{<Name>.sl}, ohne Plattform-Präfix und ohne Versionsendung im Dateinamen. Die Version steht in den Metadaten.
+	\item Optional können Plattform und Architektur in Paketnamen oder in den Metadaten kodiert werden, nicht im Dateinamen (zum Beispiel \texttt{wsat\_shim-x86\_64.sl} nur, wenn für die Verteilung ausdrücklich gewünscht).
+\end{itemize}
+
+\paragraph{Metadatenkopf.} Jede \texttt{.sl} trägt einen standardisierten Kopf (Tabelle~\ref{tab:sl_meta}). Heute baut jedes Projekt einen solchen Kopf selbst; in beiden Beispielprojekten existiert er als Funktion \texttt{*\_abi\_version()} (\texttt{csub\_abi\_version}, \texttt{csub\_omics\_abi\_version}, \texttt{wsat\_abi\_version}).
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{4.2cm}Y@{}}
+		\toprule
+		Feld & Bedeutung \\
+		\midrule
+		\texttt{magic} / \texttt{container\_version} & kennzeichnet das Format und seine Fassung \\[0.3em]
+		\texttt{name} & logischer Bibliotheksname \\[0.3em]
+		\texttt{version} & Version der Bibliothek (semantische Versionierung) \\[0.3em]
+		\texttt{abi\_version} & Version der exportierten C-Schnittstelle \\[0.3em]
+		\texttt{targets} & Liste der enthaltenen Nutzlasten je Plattform und Architektur \\[0.3em]
+		\texttt{dependencies} & logische Namen mit Versionsbereichen \\[0.3em]
+		\texttt{exports} & Liste der exportierten Symbole (optional mit Signaturhinweisen) \\[0.3em]
+		\texttt{runtime} & erklärte Laufzeitanforderung, eingebettet oder extern \\[0.3em]
+		\texttt{init} / \texttt{fini} & optionale Einstiegspunkte des Lebenszyklus \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Metadatenkopf einer \texttt{.sl}-Datei.}
+	\label{tab:sl_meta}
+\end{table}
+
+\begin{lstlisting}[caption={Beispiel eines Metadatenkopfes (Skizze)}, label={lst:sl_meta}]
+[sl]
+container_version = 1
+name        = "wsat_shim"
+version     = "1.4.0"
+abi_version = 3
+
+[[target]]
+os   = "windows"
+arch = "x86_64"
+payload = "pe"
+
+[[target]]
+os   = "linux"
+arch = "x86_64"
+payload = "elf"
+
+[[target]]
+os   = "macos"
+arch = "arm64"
+payload = "macho"
+
+[runtime]
+cpp = "embedded"          # or "external" with a declared dependency
+
+[[dependency]]
+name = "cryptosolver"
+version = ">=1.2,<2"
+
+[exports]
+symbols = ["wsat_abi_version", "wsat_solve", "wsat_free"]
+
+[lifecycle]
+init = "wsat_init"
+fini = "wsat_fini"
+\end{lstlisting}
+
+\paragraph{Zwei Auslegungen des Containers.} Beide sind möglich und werden unter den offenen Fragen (Abschnitt~\ref{sec:sl_offen}) diskutiert:
+
+\begin{itemize}
+	\item \emph{Nur Namenskonvention:} \texttt{name.sl} ist eine umbenannte gewöhnliche DLL/SO/dylib, die Metadaten stehen in einem Seitenabschnitt oder in einer Begleitdatei.
+	\item \emph{Echter Container:} \texttt{name.sl} verpackt eine oder mehrere native Nutzlasten (nach Art einer Fat Binary) zusammen mit dem Metadatenblock.
+\end{itemize}
+
+In beiden Fällen ist das \textbf{Ladeverfahren aus Abschnitt~\ref{sec:sl_kern} identisch}.
+
+\subsection{Nutzen}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.4cm}YY@{}}
+		\toprule
+		Bereich & Heute & Mit \texttt{.sl} und Standardlader \\
+		\midrule
+		Dateinamen im Code & Fallunterscheidung je Plattform & ein Name \\[0.3em]
+		\textbf{Ladeverfahren} & \textbf{je Betriebssystem andere Schnittstelle, Suchreihenfolge und Lebenszyklus} & \textbf{ein festgelegtes Verfahren} \\[0.3em]
+		Export-Makros & je Projekt, plattformabhängig & ein Standardattribut \\[0.3em]
+		Suchpfad-Logik & \texttt{add\_dll\_directory}, \texttt{RPATH}, \texttt{@rpath} & eine Regel \\[0.3em]
+		Fehlermeldungen & verschieden, teils irreführend & einheitlich, benennen die fehlende Abhängigkeit \\[0.3em]
+		Dokumentation & je Plattform & einmal geschrieben \\[0.3em]
+		Einstiegshürde & hoch & niedrig \\[0.3em]
+		Testmatrix & 3 Formate $\times$ Werkzeugketten & ein Verhalten, viele Ziele \\[0.3em]
+		Sprachanbindungen (Python, Rust, Java, \ldots) & jede mit eigener Plattformlogik & einmal je Sprache \\[0.3em]
+		Sicherheitslage & hängt von den Voreinstellungen des Systems ab & eine gehärtete Richtlinie \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Nutzen eines Standardladers gegenüber der heutigen Lage.}
+	\label{tab:sl_nutzen}
+\end{table}
+
+\subsection{Einwände und ehrliche Einschätzung}
+\label{sec:sl_einwaende}
+
+Ein tragfähiger Vorschlag muss die Gegenargumente kennen. Einige sind sachlich richtig und bestimmen, wie weit sich vereinheitlichen lässt.
+
+\paragraph{\glqq Gleiche CPU-Architektur heißt gleiche Bibliothek.\grqq} Dieser Schluss gilt nur teilweise. Die CPU-Architektur legt den \emph{Befehlssatz} fest, aber nicht alles, wovon eine Bibliothek abhängt:
+
+\begin{itemize}
+	\item die \emph{Aufrufkonvention} (Windows x64 und System~V x86-64 übergeben Register verschieden),
+	\item \emph{Systemaufrufe}, \emph{Speicher- und Threadmodell}, \emph{Laufzeitbibliothek} (MSVCRT/UCRT, glibc, libSystem),
+	\item \emph{Datentypen} (\texttt{long} ist unter Windows $32$ Bit breit, unter Linux $64$ Bit),
+	\item das \emph{Containerformat} (PE, ELF, Mach-O) und die \emph{Symbolauflösung}.
+\end{itemize}
+
+Eine echte Vereinheitlichung des Maschinencodes ist durch bloßes Umbenennen deshalb nicht zu erreichen. Das Ziel des Vorschlags ist eine \textbf{einheitliche Schnittstelle, ein einheitlicher Container und ein einheitliches Ladeverfahren}, nicht die Behauptung, derselbe Maschinencode laufe überall unverändert.
+
+\paragraph{\glqq Das Problem ist durch Abstraktionen schon gelöst.\grqq} Teilweise. CMake erzeugt je Plattform die richtige Datei, und \texttt{ctypes} und ähnliche Werkzeuge laden sie. Das verschiebt die Arbeit aber nur in Werkzeuge, und jedes verhält sich etwas anders. Jedes Projekt muss weiter über Exportregeln, Pfade und Laufzeit nachdenken, wie die beiden Beispielprojekte zeigen. Die vorhandenen Abstraktionen sind \emph{Bequemlichkeiten der Implementierung, keine Standards}: Nichts garantiert, dass \texttt{ctypes}, \texttt{libloading} und eine Java-Anbindung dieselbe Bibliothek gleich auflösen. Der Vorschlag macht aus der Abstraktion eine Spezifikation.
+
+\paragraph{Altbestand und Verträglichkeit.} Milliarden vorhandener Bibliotheken nutzen die heutigen Formate. Ein neues Format muss daneben bestehen, nicht ersetzen. Ein realistischer Weg ist ein Container oder Lader, der intern die vorhandenen Formate nutzt (Abschnitt~\ref{sec:sl_pfade}). Der Lader sollte außerdem gewöhnliche \texttt{.dll}-, \texttt{.so}- und \texttt{.dylib}-Dateien über dieselbe Schnittstelle öffnen können (\glqq Altmodus\grqq), damit die Einführung schrittweise möglich ist.
+
+\paragraph{Wer entscheidet?} Dateiformate und Lader gehören den Betriebssystemherstellern und den jeweiligen Ökosystemen. Ein Standard setzt sich nur durch, wenn er auf allen drei Seiten umgesetzt oder als Schicht über den Systemen bereitgestellt wird. Deshalb hängen Stufe~1 und~2 des Fahrplans bewusst nicht von der Mitwirkung der Hersteller ab.
+
+\paragraph{\glqq Ein weiterer Lader ist eine weitere Angriffsfläche.\grqq} Das ist berechtigt. Eine neue Ladeschicht muss kleiner und strenger sein als das, was sie umhüllt (Abschnitt~\ref{sec:sl_sicherheit}).
+
+\subsection{Umsetzungspfade}
+\label{sec:sl_pfade}
+
+Es gibt drei abgestufte Möglichkeiten.
+
+\paragraph{Stufe 1: Konvention und Werkzeuge (sofort machbar).} Ein Build-Werkzeug (zum Beispiel ein CMake-Modul) erzeugt auf jedem System eine Datei \texttt{name.sl}, intern eine gewöhnliche DLL, \texttt{.so} oder \texttt{.dylib}, samt Metadaten. Ein kleines Laufzeitpaket je Sprache stellt \texttt{sl\_open} und \texttt{sl\_symbol} bereit und vereinheitlicht Suchpfade, Exportprüfung und Fehlermeldungen \emph{nach dem standardisierten Verfahren aus Abschnitt~\ref{sec:sl_kern}}. Das senkt den Aufwand bereits erheblich, ohne ein Betriebssystem zu ändern.
+
+\paragraph{Stufe 2: eigener Lader (mittlerer Aufwand).} Eine Bibliothek im Benutzerraum lädt ein einheitliches Containerformat, das die passende native Nutzlast je Plattform enthält, ähnlich einer Fat Binary. Das ist durch Apples Universal Binaries und durch Bündelungsformate wie APE (\emph{Actually Portable Executable}) erprobt. In dieser Stufe kann der Lader das Abbilden selbst übernehmen, wodurch das Verhalten von Eigenheiten des Betriebssystems unabhängig wird.
+
+\paragraph{Stufe 3: Unterstützung durch das Betriebssystem (langfristig).} Die Hersteller erkennen \texttt{.sl} nativ. Das ist politisch und technisch der anspruchsvollste Schritt und hängt von einer Standardisierung ab.
+
+\paragraph{Verwandte Ansätze, die zu prüfen sind.}
+
+\begin{itemize}
+	\item WebAssembly mit WASI und dem Komponentenmodell: ein Format, mehrere Laufzeiten, zum Preis von Leistung und Schnittstellenaufwand.
+	\item Portable C-ABI-Schichten in Sprachen wie Rust (\texttt{libloading}) als Quelle für Erfahrungen beim Entwurf der Schnittstelle.
+	\item Vorhandene Plug-in-Standards (zum Beispiel Pythons stabile ABI, JNI/Panama, Node-API), die Teile der Grenze bereits standardisiert haben.
+\end{itemize}
+
+\subsection{Sicherheit}
+\label{sec:sl_sicherheit}
+
+Ein einheitlicher Lader ist nur annehmbar, wenn er \emph{sicherer} ist als der Ist-Zustand.
+
+\begin{itemize}
+	\item \textbf{Keine implizite Suche im aktuellen Verzeichnis.} Das verhindert DLL-Hijacking.
+	\item \textbf{Keine Abhängigkeit von veränderlicher globaler Umgebung} (\texttt{PATH}, \texttt{LD\_LIBRARY\_PATH}) bei der Auflösung. Nur \texttt{SL\_PATH}; sie lässt sich für privilegierte Prozesse abschalten (gehärteter Modus).
+	\item \textbf{Strenge Suchursprünge.} Suchverzeichnisse sind, soweit die Plattform es erlaubt, auf Besitzer und Schreibrechte zu prüfen.
+	\item \textbf{Optionale Signatur- und Hashprüfung} der \texttt{.sl}-Container, erklärt in den Metadaten.
+	\item \textbf{Durchsetzung des Exports} begrenzt die erreichbare Oberfläche einer Bibliothek auf die erklärte Schnittstelle.
+	\item \textbf{Im Zweifel abbrechen.} Jede Mehrdeutigkeit (zwei Kandidaten mit widersprüchlichen Metadaten, eine ABI-Abweichung) führt zu einem Fehler, nicht zu einer stillen Wahl.
+\end{itemize}
+
+\subsection{Risiken}
+
+\begin{itemize}
+	\item \textbf{Zersplitterung.} Ein weiterer Standard neben drei vorhandenen kann das Problem zunächst vergrößern (der \glqq xkcd-927-Effekt\grqq). Gegenmaßnahme: ein Altmodus, der die neue Schicht zur Obermenge statt zum Konkurrenten macht.
+	\item \textbf{Sicherheit.} Ein einheitlicher Lader muss Suchpfade streng regeln, sonst wird das Nachladen manipulierter Bibliotheken möglich. DLL-Hijacking ist unter Windows schon heute ein bekanntes Problem.
+	\item \textbf{Leistung.} Zusätzliche Schichten dürfen Laden und Aufrufe nicht merklich verlangsamen. Für die hier betrachteten Fälle (wenige Aufrufe mit großen Datenmengen) ist das unkritisch. Die Symbolsuche liefert einfache Funktionszeiger, sodass nach der Bindung kein Aufwand je Aufruf entsteht.
+	\item \textbf{Pflege.} Jemand muss Spezifikation, Werkzeuge, Konformitätssuite und Referenzimplementierung pflegen.
+	\item \textbf{Auseinanderlaufen der Plattformen.} Betriebssysteme ändern ihr Ladeverhalten. Der Plattformadapter fängt das ab, braucht aber fortlaufende Tests in der Continuous Integration auf allen drei Systemen.
+\end{itemize}
+
+\subsection{Anwendung auf die beiden Beispielprojekte}
+\label{sec:sl_anwendung}
+
+Mit Stufe~1 ließe sich in beiden Projekten Folgendes entfernen oder vereinfachen:
+
+\begin{itemize}
+	\item \texttt{library\_filename()} und die MinGW-Sonderfälle in \texttt{build\_shim()};
+	\item der Windows-Block mit \texttt{add\_dll\_directory};
+	\item das Makro \texttt{CSUB\_EXPORT} (und \texttt{WSAT\_API}) und die plattformabhängigen Exportzeilen;
+	\item die plattformspezifischen Teile der README-Anleitung (PowerShell-Zeilenfortsetzung, vier Dateinamen);
+	\item die Sonderbehandlung der statischen Laufzeit für MinGW, sofern die Laufzeit im Container erklärt ist.
+\end{itemize}
+
+Vorher und nachher am Beispiel der Dateinamenswahl:
+
+\begin{lstlisting}[language=Python, caption={Vorher: Dateiname je Plattform (aus \texttt{native.py}, subgraph-sat-solver-econ)}, label={lst:sl_vorher}]
+def library_filename() -> str:
+    if sys.platform == "win32":
+        return "wsat_shim.dll"
+    if sys.platform == "darwin":
+        return "libwsat_shim.dylib"
+    return "libwsat_shim.so"
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={Nachher: dasselbe mit dem Standardlader (Entwurf)}]
+import sl
+lib = sl.open("wsat_shim")      # same code on every system
+\end{lstlisting}
+
+Die beiden Verfahren aus den Abschnitten~\ref{sec:laden_gendb} und~\ref{sec:laden_econ} würden dabei \emph{nicht} gleich: Ob erst bei Bedarf gebaut wird und ob ein Rückfall auf Python besteht, ist eine Entscheidung des Projekts und bleibt es. Vereinheitlicht wird nur, \emph{wie} die Bibliothek gefunden, geprüft und geladen wird. Das Fallback-Verhalten von Gen-DB ließe sich auf \texttt{sl\_open} aufsetzen, indem ein Fehlercode (zum Beispiel \texttt{SL\_ERR\_NOT\_FOUND} oder \texttt{SL\_ERR\_ABI\_MISMATCH}) den Wechsel auslöst, statt dass jede Fehlerart einzeln aus dem Systemtext abgeleitet wird. Auch der Fehler B1 (fehlendes \texttt{-fPIC}) würde von einem Build-Modul abgedeckt, das Positionsunabhängigkeit und Sichtbarkeit je Plattform selbst setzt.
+
+\subsection{Empfohlener Fahrplan}
+
+\begin{enumerate}
+	\item \textbf{Das Ziel schärfen.} Benennung, Export, Suchpfad, Metadaten und vor allem das \textbf{Ladeverfahren und seine Schnittstelle} vereinheitlichen. Den Maschinencode nicht vereinheitlichen.
+	\item \textbf{Zuerst die Spezifikation schreiben.} Suchreihenfolge, Lebenszyklus, Fehlercodes, Metadaten und Exportattribut, als versioniertes Dokument, offen für Beiträge von außen.
+	\item \textbf{Den Referenzlader bauen (Stufe~1).} Ein kleiner C-Kern mit Plattformadaptern für Windows, Linux und macOS sowie ein CMake-Modul. Mit der Python-Anbindung beginnen, da beide Projekte \texttt{ctypes} nutzen.
+	\item \textbf{Die Konformitätssuite parallel schreiben.} In der Continuous Integration auf allen drei Systemen und mit den Werkzeugketten MSVC und MinGW ausführen.
+	\item \textbf{Die beiden Beispielprojekte migrieren} und messen, wie viel Plattformcode entfällt und wie viele Fehlerarten verschwinden.
+	\item \textbf{Erst nach nachgewiesenem Nutzen} Stufe~2 (Container, Fat Binaries) und Stufe~3 (Unterstützung durch Betriebssysteme) verfolgen.
+\end{enumerate}
+
+\subsection{Offene Fragen}
+\label{sec:sl_offen}
+
+\begin{itemize}
+	\item Soll \texttt{.sl} ein eigener Container sein oder nur eine Namenskonvention über vorhandenen Formaten?
+	\item Wie wird die C++-Laufzeit behandelt (eingebettet, mitgeliefert, als vorhanden angenommen)?
+	\item Wie werden mehrere Architekturen (x86-64, ARM64) in einer Datei dargestellt?
+	\item Welche Versionierungs- und Kompatibilitätsregeln gelten (ABI-Versionierung, semantische Versionsbereiche für Abhängigkeiten)?
+	\item Wie genau lauten Trennzeichen und Maskierungsregel für \texttt{SL\_PATH}, damit sie auf jedem System identisch sind?
+	\item Soll der Lader verzögertes Binden und verzögertes Laden unterstützen, und mit welchen garantierten Eigenschaften?
+	\item Wie wird das Entladen behandelt bei Bibliotheken, die Threads starten oder Rückrufe registrieren?
+	\item Wer pflegt Spezifikation, Referenzimplementierung und Konformitätssuite?
+\end{itemize}
+
+Aus der Sicht dieser Arbeit kommt eine Frage hinzu. Die Suchreihenfolge hält beim \emph{ersten} Treffer an (Definition~\ref{def:sl_suchliste}), der Abschnitt zur Sicherheit verlangt aber einen Fehler bei \emph{zwei Kandidaten mit widersprüchlichen Metadaten}. Beides ist vereinbar, wenn der Lader im Normalbetrieb dem ersten Treffer folgt und nur im gehärteten Modus auch die späteren Suchursprünge auf widersprüchliche Kandidaten prüft; der Entwurf legt das nicht fest.
+
+\subsection{Stand}
+
+Das Konzept ist ein Diskussionsentwurf. In \repo{subgraph-sat-solver-econ} ist es nach Angabe der README ausdrücklich \emph{nicht umgesetzt}; dort gelten die Dateien \texttt{.dll}, \texttt{.so} und \texttt{.dylib}. Auch in Gen-DB wird heute der in Abschnitt~\ref{sec:laden_gendb} beschriebene Weg benutzt. Ausblick und nächste Schritte stehen in Kapitel~\ref{chap:ausblick}.

@@ -1,0 +1,475 @@
+
+% =====================================================================
+\part{Der Kern}
+% =====================================================================
+
+\chapter{Die Python-Referenz}
+\label{chap:python_referenz}
+
+Der Subgraph Algorithmus entstand als Python-Klasse \texttt{Subgraph} in \repo{subgraph}. Sie ist die Referenz, an der alle späteren Wiederverwendungen gemessen werden: Weicht eine Portierung von ihr ab, ist die Portierung zu prüfen, nicht die Referenz (mit einer Ausnahme, Abschnitt~\ref{sec:abweichungen}). Dieses Kapitel beschreibt die Referenz so genau, dass die folgenden Kapitel auf ihr aufbauen können: ihren Aufbau, den Rechenweg an einem durchgerechneten Beispiel, die formalen Eigenschaften der berechneten Relation, ihre Rolle in der Wiederverwendungskette und ihre Grenzen.
+
+Die Beschreibung folgt der Referenz und ihrer wörtlichen Portierung nach C++ (Abschnitt~\ref{sec:cpp_algorithmus}). Alle Rechnungen und Beispiele dieses Kapitels wurden mit der C++-Bibliothek nachgeprüft; der Pseudocode in Listing~\ref{lst:py_ablauf} gibt den Ablauf sinngemäß wieder und ist kein Zitat des Python-Quelltexts.
+
+\section{Aufbau}
+\label{sec:py_aufbau}
+
+Die Datei \texttt{src/subgraph.py} (326 Zeilen) enthält eine Klasse mit folgenden Methoden.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{5.4cm}Y@{}}
+		\toprule
+		Methode & Aufgabe \\
+		\midrule
+		\texttt{\_compute\_column\_signature} & Spaltensignatur $\sigma_j=\sum_i A_{ij}2^i+j\,2^n$ mit Python-Ganzzahlen beliebiger Größe \\
+		\texttt{\_find\_signature\_rotation\_match} & prüft alle $n_B$ Rotationen von $\rho(B)$ gegen $\rho(A)$ \\
+		\texttt{\_compare\_signature\_sequences} & Tabelle für den längsten gemeinsamen \emph{zusammenhängenden} Teilabschnitt; Ergebnis \emph{wahr}, wenn Länge $\ge 2$ \\
+		\texttt{compare\_graphs} & Entscheidung \texttt{keep\_A}, \texttt{keep\_B}, \texttt{keep\_both}, \texttt{equal\_keep\_A}, \texttt{equal\_keep\_B} \\
+		\texttt{compare\_graphs\_with\_adj\_list} & Variante für dichte Graphen: Kantenmengeninklusion \emph{ohne} Rotation (andere Relation) \\
+		\texttt{analyze\_complexity} & textuelle Aufwandsanalyse, $O(n^3)$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Aufbau der Python-Referenz.}
+	\label{tab:py_aufbau}
+\end{table}
+
+Die Methoden bilden eine Pipeline (Abbildung~\ref{abb:py_pipeline}): Zwei Adjazenzmatrizen werden zu Signaturen, die Signaturen zu Zeilenkomponenten, die Zeilenkomponenten zu einem Wahrheitswert je Richtung und die beiden Wahrheitswerte zu einer Entscheidung. Nur die beiden mittleren Stufen (Rotation und Tabelle) kosten nennenswert Rechenzeit; die erste und die letzte Stufe sind linear in der Eingabegröße.
+
+\begin{figure}[!ht]
+	\centering
+	\resizebox{0.97\textwidth}{!}{%
+		\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+			s/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=2.55cm, minimum height=1.5cm, inner sep=3pt},
+			l/.style={font=\scriptsize, text=darkgray, align=center}]
+			\node[s] (a) at (0,0)    {\textbf{Matrizen}\\$A$, $B$};
+			\node[s] (b) at (3.35,0) {\textbf{Signaturen}\\$\sigma_j(A)$, $\sigma_j(B)$};
+			\node[s] (c) at (6.7,0)  {\textbf{Zeilen\-komponenten}\\$\rho(A)$, $\rho(B)$};
+			\node[s] (d) at (10.05,0){\textbf{Rotation und Tabelle}\\$A\preceq B$?\ $B\preceq A$?};
+			\node[s] (e) at (13.4,0) {\textbf{Entscheidung}\\\texttt{keep\_*}};
+			\draw[->] (a)--(b); \draw[->] (b)--(c); \draw[->] (c)--(d); \draw[->] (d)--(e);
+			\node[l] at (1.675,-1.25) {$O(n^2)$};
+			\node[l] at (5.025,-1.25) {$O(n)$};
+			\node[l] at (8.375,-1.25) {$O(n^3)$};
+			\node[l] at (11.725,-1.25) {$O(n^2)$};
+		\end{tikzpicture}
+	}
+	\caption{Pipeline der Referenz. Unter den Pfeilen steht der Aufwand der jeweiligen Stufe für gleich große Graphen mit $n$ Knoten; die letzte Stufe zählt gegebenenfalls die Kanten.}
+	\label{abb:py_pipeline}
+\end{figure}
+
+Die Entscheidung in \texttt{compare\_graphs} folgt dem Schema: Gilt $A\preceq B$ und $B\preceq A$ (nur bei gleicher Größe möglich), entscheidet die Kantenzahl über \texttt{equal\_keep\_A} oder \texttt{equal\_keep\_B}; gilt nur $A\preceq B$, bleibt $B$; gilt nur $B\preceq A$, bleibt $A$; sonst bleiben beide. Die Python-Fassung kennt \emph{keinen} Ergebniswert für identische Matrizen: Identische Graphen ($n\ge 2$) erscheinen als \texttt{equal\_keep\_A}.
+
+\section{Der Rechenweg im Einzelnen}
+\label{sec:py_rechenweg}
+
+\paragraph{Signatur und Zeilenkomponente.} Die Signatur $\sigma_j$ (Definition in Abschnitt~\ref{sec:signaturen}) fasst zwei Informationen in einer Zahl zusammen: das Bitmuster der Spalte $j$ in den unteren $n$ Bit und die Spaltenposition $j$ darüber. Das Positionsglied macht die Signaturen aller Spalten eines Graphen paarweise verschieden; für den Vergleich wird es sofort wieder entfernt, denn zwei Graphen sollen auch dann verglichen werden können, wenn sich dieselbe Spalte in beiden an verschiedenen Positionen befindet. Übrig bleibt die Zeilenkomponente $\rho_j(A)$, die den Spalteninhalt als Zahl kodiert. Bei Python-Ganzzahlen beliebiger Länge gibt es dabei keine Größenbeschränkung; die Referenz hat deshalb, anders als die C++-Fassung, keine Knotengrenze.
+
+\paragraph{Rotation.} Die Folge $\rho(B)$ wird nacheinander um $r=0,1,\ldots,n_B-1$ Positionen nach rechts rotiert. Eine Rotation entspricht dem zyklischen Verschieben des Anfangspunkts: Der Algorithmus verlangt nicht, dass das kleinere Muster am Anfang der größeren Folge beginnt, sondern an irgendeiner Stelle des Kreises.
+
+\paragraph{Tabelle.} Für zwei Folgen $a$ (Länge $p$) und $b$ (Länge $q$) wird eine Tabelle $T\in\mathbb{N}^{(p+1)\times(q+1)}$ ausgefüllt. Bei gleichen Folgengliedern $a_{i-1}=b_{j-1}$ ist $T_{ij}=T_{i-1,j-1}+1$, sonst $T_{ij}=0$. Das Maximum der Tabelle ist die Länge der längsten gemeinsamen \emph{zusammenhängenden} Teilfolge. Der Rücksetzwert $0$ unterscheidet diese Tabelle von der klassischen Tabelle für die längste gemeinsame Teilfolge; deshalb ist der Methodenname \texttt{computeLCS} der C++-Fassung irreführend (Befund B13, Kapitel~\ref{chap:befunde}).
+
+\paragraph{Schwelle.} Eine Rotation gilt als Treffer, wenn das Tabellenmaximum mindestens $2$ beträgt. Die Schwelle $2$ ist ein Merkmal des Verfahrens; ihre Begründung liegt in \cite{epp2026subgraph} und nicht in dieser Arbeit. Satz~\ref{satz:paar} zeigt, was sie bewirkt: Für die Entscheidung genügt ein einziges Paar benachbarter Zeilenkomponenten, das in beiden Folgen vorkommt.
+
+Der gesamte Ablauf lässt sich in wenigen Zeilen Pseudocode fassen. Er ist hier sinngemäß aus Beschreibung und Portierung wiedergegeben und nicht aus dem Python-Quelltext zitiert.
+
+\begin{lstlisting}[language=Python, caption={Ablauf von \texttt{compare\_graphs} (Pseudocode, sinngemäß)}, label={lst:py_ablauf}]
+def enthalten(rhoA, rhoB):                 # A <= B ?
+    if len(rhoB) < len(rhoA): return False
+    for r in range(len(rhoB)):
+        rotiert = rotiere_rechts(rhoB, r)
+        if laengster_gemeinsamer_abschnitt(rhoA, rotiert) >= 2:
+            return True
+    return False
+
+def compare_graphs(A, B):
+    rhoA, rhoB = zeilenkomponenten(A), zeilenkomponenten(B)
+    a_in_b, b_in_a = enthalten(rhoA, rhoB), enthalten(rhoB, rhoA)
+    if a_in_b and b_in_a: return gleich_gross_nach_kanten(A, B)
+    if a_in_b:            return "keep_B"
+    if b_in_a:            return "keep_A"
+    return "keep_both"
+\end{lstlisting}
+
+\section{Ein durchgerechnetes Beispiel}
+\label{sec:py_beispiel}
+
+Das folgende Beispiel zeigt jede Stufe der Pipeline. $A$ sei die gerichtete Kette $0\to1\to2\to3$ und $B$ die Kette $0\to1\to2$, also
+\[
+A=\begin{pmatrix}0&1&0&0\\0&0&1&0\\0&0&0&1\\0&0&0&0\end{pmatrix},\qquad
+B=\begin{pmatrix}0&1&0\\0&0&1\\0&0&0\end{pmatrix}.
+\]
+In Spalte $j$ von $A$ steht genau dann eine Eins in Zeile $i$, wenn die Kante $i\to j$ existiert. Spalte~0 ist leer, Spalte~1 enthält die Eins in Zeile~0, Spalte~2 in Zeile~1 und Spalte~3 in Zeile~2. Daraus folgen die Zeilenkomponenten $\rho(A)=(0,1,2,4)$ und mit dem Positionsglied $j\cdot 2^4$ die Signaturen $\sigma(A)=(0,17,34,52)$. Für $B$ ($n=3$) ergibt sich analog $\rho(B)=(0,1,2)$ und $\sigma(B)=(0,9,18)$.
+
+Wegen $n_B<n_A$ ist nur die Richtung $B\preceq A$ möglich; die Richtung $A\preceq B$ entfällt, weil $A$ länger ist als $B$. Tabelle~\ref{tab:py_rotationen} zeigt die vier Rotationen von $\rho(A)$ und die jeweils längste gemeinsame zusammenhängende Teilfolge mit $\rho(B)=(0,1,2)$.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}cL{3.8cm}L{3.6cm}Y@{}}
+		\toprule
+		$r$ & $\mathrm{rot}_r(\rho(A))$ & Längste gemeinsame Teilfolge & Länge \\
+		\midrule
+		$0$ & $(0,1,2,4)$ & $(0,1,2)$ & $3\ge 2$, Treffer \\
+		$1$ & $(4,0,1,2)$ & $(0,1,2)$ & $3\ge 2$, Treffer \\
+		$2$ & $(2,4,0,1)$ & $(0,1)$ & $2\ge 2$, Treffer \\
+		$3$ & $(1,2,4,0)$ & $(1,2)$ & $2\ge 2$, Treffer \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Rotationen im Beispiel $B\preceq A$. Schon $r=0$ genügt; die weiteren Zeilen zeigen, dass hier jede Rotation einen Treffer liefert.}
+	\label{tab:py_rotationen}
+\end{table}
+
+Es gilt also $B\preceq A$ und nicht $A\preceq B$; die Entscheidung lautet \texttt{keep\_A} (C++: \texttt{KEEP\_A}, Code~$0$). Das stimmt mit der anschaulichen Erwartung überein: Die Kette der Länge drei ist eine Teilstruktur der Kette der Länge vier. Die Paarcharakterisierung führt zum selben Ergebnis, ohne Rotation und Tabelle: $P_{\mathrm{lin}}(\rho(B))=\{(0,1),(1,2)\}$ und $P_{\mathrm{cyc}}(\rho(A))=\{(0,1),(1,2),(2,4),(4,0)\}$ haben die Paare $(0,1)$ und $(1,2)$ gemeinsam. Beide Rechnungen wurden mit der C++-Bibliothek nachvollzogen (\texttt{calculateSignatures}, \texttt{compareGraphs}); sie liefert dieselben Signaturen und \texttt{KEEP\_A}. Das Beispiel ist zugleich das Beispiel der Dokumentation von \texttt{csubgraph}.
+
+\section{Eigenschaften der berechneten Relation}
+\label{sec:py_eigenschaften}
+
+Die Relation $\preceq$ wird in den späteren Kapiteln als Black Box benutzt. Dieser Abschnitt hält fest, was man von ihr erwarten darf und was nicht. Die Aussagen gelten für die Referenz und, wegen der wörtlichen Portierung, ebenso für alle Fassungen, die dieselbe Relation berechnen (Satz~\ref{satz:paar}).
+
+\begin{lemma}[Reflexivität erst ab zwei Knoten]
+	\label{lem:reflexiv}
+	Für jede Adjazenzmatrix $A$ mit $n$ Knoten gilt $A\preceq A$ genau dann, wenn $n\ge 2$.
+\end{lemma}
+
+\begin{proof}
+	Sei $n\ge2$ und $a=\rho(A)$. Das Paar $(a_0,a_1)$ liegt in $P_{\mathrm{lin}}(a)$ und, weil $P_{\mathrm{lin}}\subseteq P_{\mathrm{cyc}}$ für $m\ge 2$ gilt, auch in $P_{\mathrm{cyc}}(a)$. Nach Satz~\ref{satz:paar} folgt $A\preceq A$. Für $n=1$ ist $P_{\mathrm{lin}}(a)=\emptyset$, der Schnitt also leer, und $A\not\preceq A$.
+\end{proof}
+
+Das Lemma erklärt die einzige Abweichung zwischen Python und C++ (Abschnitt~\ref{sec:abweichungen}): Zwei identische $1\times1$-Graphen stehen in keiner Richtung in Relation, die Referenz meldet \texttt{keep\_both}. Die C++-Fassung fängt den Fall mit einer vorgeschalteten Gleichheitsprüfung ab. Aus demselben Grund bleibt \texttt{IDENTICAL} für $n\ge 2$ ohne Folge: Dort erkennt die Relation die Gleichheit ohnehin.
+
+\begin{beispiel}[Die Relation hängt von der Knotennummerierung ab]
+	\label{bsp:nummerierung}
+	Der ungerichtete Pfad mit drei Knoten hat zwei verschiedene Beschriftungen, je nachdem, ob der mittlere Knoten die Nummer $1$ oder die Nummer $0$ trägt. Die Zeilenkomponenten sind $(2,5,2)$ beziehungsweise $(6,1,1)$. Die Paarmengen $P_{\mathrm{lin}}(2,5,2)=\{(2,5),(5,2)\}$ und $P_{\mathrm{cyc}}(6,1,1)=\{(6,1),(1,1),(1,6)\}$ sind disjunkt; ebenso in der Gegenrichtung. Der Algorithmus meldet \texttt{KEEP\_BOTH}, obwohl beide Graphen bis auf die Nummerierung gleich sind.
+\end{beispiel}
+
+Das ist kein Fehler im Sinn der Spezifikation, aber eine wichtige Eigenschaft: Die Relation $\preceq$ vergleicht \emph{beschriftete} Graphen, nicht Isomorphieklassen. Eine vollständige Aufzählung der ungerichteten Graphen auf vier Knoten (Kapitel~\ref{chap:pruefung}) zeigt das Ausmaß: Es gibt $492$ geordnete Paare verschiedener Beschriftungen isomorpher Graphen; bei $434$ davon, also bei $88\,\%$, meldet der Algorithmus \texttt{KEEP\_BOTH}. Wer die Relation auf Graphen anwendet, deren Knotenreihenfolge zufällig ist, erhält deshalb viele \glqq falsch negative\grqq{} Antworten im Sinn des klassischen Teilgraphproblems; Beispiel~\ref{bsp:k3k2} zeigte bereits eine andere Quelle dafür.
+
+\begin{beispiel}[Die Relation ist nicht transitiv]
+	\label{bsp:transitiv}
+	Seien $A=K_2$ (Zeilenkomponenten $(2,1)$), $B$ der ungerichtete Graph auf drei Knoten mit der einzigen Kante $\{0,1\}$ (Zeilenkomponenten $(2,1,0)$) und $C$ der ungerichtete Graph auf vier Knoten mit der einzigen Kante $\{0,2\}$ (Zeilenkomponenten $(4,0,1,0)$). Dann gilt:
+	\begin{itemize}
+		\item $A\preceq B$, denn $(2,1)\in P_{\mathrm{lin}}(2,1)\cap P_{\mathrm{cyc}}(2,1,0)$;
+		\item $B\preceq C$, denn $(1,0)\in P_{\mathrm{lin}}(2,1,0)\cap P_{\mathrm{cyc}}(4,0,1,0)$;
+		\item $A\not\preceq C$, denn $(2,1)\notin P_{\mathrm{cyc}}(4,0,1,0)=\{(4,0),(0,1),(1,0),(0,4)\}$.
+	\end{itemize}
+	Die C++-Bibliothek bestätigt es: \texttt{compareGraphs} liefert für $(A,B)$ und $(B,C)$ jeweils \texttt{KEEP\_B}, für $(A,C)$ aber \texttt{KEEP\_BOTH}.
+\end{beispiel}
+
+Klassisch ist $K_2$ sogar in $C$ enthalten. Der Fall zeigt noch einmal, dass $\preceq$ eine eigene Relation ist und keine Näherung des Teilgraphtests. Für Anwendungen, die \glqq behalte die umfassendere Struktur\grqq{} wörtlich nehmen und Strukturen aussortieren, hat die fehlende Transitivität eine praktische Folge: Das Ergebnis hängt von der Reihenfolge der Vergleiche ab. Verarbeitet man im Beispiel zuerst $(A,B)$ und dann $(B,C)$, bleibt nur $C$ übrig; verarbeitet man zuerst $(B,C)$ und dann $(A,C)$, bleiben $A$ und $C$ übrig, denn für $(A,C)$ lautet das Ergebnis \texttt{KEEP\_BOTH}. Wo die Relation dagegen nur einzeln ausgewertet wird, etwa bei einer Anfrage gegen alle gespeicherten Stapel (Abschnitt~\ref{sec:index}), hat die fehlende Transitivität keine Folge, denn dort wird jedes Paar unabhängig von den anderen entschieden.
+
+Zwei weitere Eigenschaften folgen unmittelbar aus den Definitionen und dem Quelltext.
+
+\begin{itemize}
+	\item \emph{Größenordnung:} $A\preceq B$ verlangt $n_A\le n_B$. Wechselseitige Enthaltung ($A\preceq B$ und $B\preceq A$) setzt deshalb $n_A=n_B$ voraus; nur dann kann \texttt{equal\_keep\_*} eintreten.
+	\item \emph{Spiegelung der Entscheidung:} Die beiden Richtungen $A\preceq B$ und $B\preceq A$ werden mit demselben Verfahren geprüft. Vertauscht man $A$ und $B$, vertauschen sich daher \texttt{keep\_A} und \texttt{keep\_B}. Bei \texttt{equal\_keep\_*} entscheidet die Kantenzahl, und bei Gleichstand bleibt jeweils das \emph{erste} Argument (im Quelltext von \texttt{compareGraphs}: \texttt{edgesA >= edgesB}).
+\end{itemize}
+
+\section{Laufzeit und Speicher der Referenz}
+\label{sec:py_laufzeit}
+
+Die Referenz prüft je Richtung höchstens $n_B$ Rotationen, jede mit einer Tabelle der Größe $(n_A+1)(n_B+1)$. Für gleich große Graphen sind das $O(n^3)$ Schritte und $O(n^2)$ Speicher für die Tabelle. Zählt man Operationen auf Maschinenwörtern statt auf Zahlen, kommt bei Python-Ganzzahlen ein weiterer Faktor hinzu: Ein Vergleich zweier Zeilenkomponenten kostet bis zu $\lceil n/64\rceil$ Wortvergleiche. Das ist eine Rechnung aus der Zahldarstellung und keine Messung; für die Größen, die in Gen-DB vorkommen, spielt sie keine Rolle.
+
+Die Messungen in Gen-DB (Abschnitt~\ref{sec:messungen}) zeigen, was der Preis der Referenz in der Praxis ist: Ein einzelner Vergleich dauert im Mikro-Benchmark im Mittel $2{,}69$\,ms in Python und $0{,}074$\,ms in C++. Bei der Suche über alle Kandidaten verteilt sich die Zeit anders: $1{,}27$\,ms je Kandidat gegenüber $0{,}20$\,ms. Dass der Gewinn im Gesamtlauf kleiner ausfällt als im Einzelvergleich, hat mit der Kopplung zu tun und nicht mit dem Algorithmus (Kapitel~\ref{chap:vergleich}).
+
+\section{Die Rolle der Referenz in der Kette}
+\label{sec:py_rolle}
+
+Die Referenz ist in der Wiederverwendungskette an fünf Stellen beteiligt. Tabelle~\ref{tab:py_rolle} ordnet sie, und die letzte Spalte sagt, was passiert, wenn man die Referenz ändert.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{2.0cm}L{3.3cm}L{3.9cm}Y@{}}
+		\toprule
+		Nr. & Rolle der Referenz & Art der Abhängigkeit & Folge einer Änderung der Referenz \\
+		\midrule
+		\W{1} & Vorlage der Portierung & Quelltext wurde übersetzt & manuell nachziehen, Differenzialtest wiederholen \\
+		\W{6} & Fallback in Gen-DB & Paket, Version \texttt{@main} & wirkt \emph{sofort und ungeprüft} (Befund B4) \\
+		\W{9}, \W{10} & Spezifikation der Relation & kein gemeinsamer Quelltext & manuell nachziehen \\
+		\W{13} & Vergleichsorakel der Differenzialtests & wird als Prüfling aufgerufen & Tests sind dann gegen eine \emph{neue} Relation gerichtet \\
+		\W{18} & Gegenstand der Theorie & Satz~\ref{satz:paar} bezieht sich auf $\preceq$ & Beweis prüfen, Sätze neu aussprechen \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Beteiligung der Python-Referenz an der Wiederverwendungskette.}
+	\label{tab:py_rolle}
+\end{table}
+
+Die Tabelle zeigt zwei Eigenheiten. Erstens ist die Referenz zugleich Ursprung und Prüfmaßstab: Sie ist die Vorlage von \W{1}, \W{9} und \W{10} und der Maßstab, an dem dieselben Fassungen in den Differenzialtests gemessen werden. Ändert man sie, verschiebt sich beides gleichzeitig, und ein Differenzialtest kann nichts mehr melden, solange die Fassungen nicht gleichzeitig mitgezogen werden. Zweitens ist \W{6} die einzige Stelle, an der eine Änderung der Referenz ohne Zutun wirksam wird; deshalb steht die Pinnung auf eine feste Version (B4) unter den Verbesserungen mit mittlerer Priorität.
+
+\section{Grenzen der Referenz}
+\label{sec:py_grenzen}
+
+Die Referenz beantwortet die in \cite{epp2026subgraph} definierte Frage. Vier Eigenschaften sollte man kennen, bevor man sie benutzt.
+
+\begin{enumerate}
+	\item Sie entscheidet \emph{nicht} das klassische Teilgraphproblem (Beispiel~\ref{bsp:k3k2}, Beispiel~\ref{bsp:transitiv}). Wo ein exakter Test gebraucht wird, ist \texttt{ExactSubgraph} zu verwenden (Abschnitt~\ref{sec:exact}).
+	\item Sie ist von der Knotenreihenfolge abhängig (Beispiel~\ref{bsp:nummerierung}).
+	\item Sie verhält sich bei identischen $1\times1$-Graphen anders als die Portierung (Lemma~\ref{lem:reflexiv}, Befund B7).
+	\item Sie ist die langsamste der Fassungen: Der Preis der Python-Ganzzahlen und der Interpretation ist der Faktor $\approx 37$ im Mikro-Benchmark.
+\end{enumerate}
+
+Die Methode \texttt{compare\_graphs\_with\_adj\_list} gehört nicht zur untersuchten Relation: Sie vergleicht Kantenmengen und benutzt keine Rotation (Tabelle~\ref{tab:py_aufbau}). Sie kommt in keiner der untersuchten Wiederverwendungen vor.
+
+\chapter{Die C++-Portierung: \texttt{csubgraph}}
+\label{chap:cpp_portierung}
+
+\texttt{csubgraph} ist die erste Wiederverwendung (\W{1}) und zugleich der Kern aller weiteren. Es enthält drei Module (Abbildung~\ref{abb:module}); dieses Kapitel behandelt das erste.
+
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+		m/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=3.9cm, minimum height=1.3cm}]
+		\node[m] (a) at (0,0) {\textbf{SubgraphAlgorithm}\\Signaturen, Rotation,\\\texttt{compareGraphs}};
+		\node[m] (b) at (5.2,0) {\textbf{MultiOmics}\\Schichtstapel,\\Modi, Strategien};
+		\node[m] (c) at (10.4,0) {\textbf{ExactSubgraph}\\Clique, Monomorphismus,\\Einbettung};
+		\draw[->, thick] (b) -- node[above, font=\scriptsize]{ruft auf} (a);
+		\draw[dashed] (c) -- node[above, font=\scriptsize]{kein Aufruf} (b);
+	\end{tikzpicture}
+	\caption{Die drei Module von \texttt{csubgraph}. \texttt{MultiOmics} ruft Funktionen von \texttt{SubgraphAlgorithm} direkt auf (\texttt{computeLCS}, \texttt{rotateSequence}, \texttt{calculateSignatures}, \texttt{extractRowComponents}); \texttt{ExactSubgraph} nutzt vom Signaturverfahren nichts.}
+	\label{abb:module}
+\end{figure}
+
+\section{Bauziele}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.3cm}L{3.9cm}Y@{}}
+		\toprule
+		Ziel & Art & Verwendung \\
+		\midrule
+		\texttt{subgraphlib} & statische Bibliothek & Kern; vom Adapter und (über C-Wrapper) von Gen-DB benutzt \\
+		\texttt{subgraph-cli} & Programm, JSON über stdin/stdout & Einzelvergleich mit \texttt{SubgraphAlgorithm}; benötigt \texttt{nlohmann/json} \cite{nlohmann} \\
+		\texttt{subgraph} & Programm, Dateiprotokoll & Adapter für den SAT-Solver (\texttt{SolverCli.cpp}) \\
+		\texttt{subgraph-tests} & Programm & GoogleTest-Suite \cite{googletest} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Bauziele von \texttt{csubgraph} (aus \texttt{CMakeLists.txt}).}
+	\label{tab:csub_ziele}
+\end{table}
+
+Unter GCC und Clang werden Bibliothek und Tests mit \texttt{--coverage} übersetzt; Anwendungen, die die Bibliothek in eine gemeinsame Bibliothek linken, müssen deshalb \texttt{-lgcov} hinzufügen (Abschnitt~\ref{sec:gendb_wrapper}). Die CMake-Datei setzt \emph{nicht} \texttt{POSITION\_INDEPENDENT\_CODE}; das verhindert unter Linux das Einbinden in eine gemeinsame Bibliothek (Kapitel~\ref{chap:befunde}).
+
+\section{Das Modul \texttt{SubgraphAlgorithm}}
+\label{sec:cpp_algorithmus}
+
+\begin{lstlisting}[language=C++, caption={Öffentliche Schnittstelle von \texttt{SubgraphAlgorithm} (gekürzt)}, label={lst:subalg_h}]
+class SubgraphAlgorithm {
+public:
+    enum class Result { KEEP_A, KEEP_B, KEEP_BOTH, IDENTICAL, EQUAL_KEEP_A, EQUAL_KEEP_B };
+
+    static std::vector<uint64_t> calculateSignatures(const std::vector<std::vector<int>>& m);
+    static std::vector<uint64_t> extractRowComponents(const std::vector<uint64_t>& sigs, size_t n);
+    static std::vector<uint64_t> rotateSequence(const std::vector<uint64_t>& seq, size_t rotation);
+    static size_t computeLCS(const std::vector<uint64_t>& a, const std::vector<uint64_t>& b);
+    static Result compareGraphs(const std::vector<std::vector<int>>& a,
+                                const std::vector<std::vector<int>>& b);  // wirft std::invalid_argument
+    static bool isValidAdjacencyMatrix(const std::vector<std::vector<int>>& m);
+    static std::string resultToString(Result r);
+};
+\end{lstlisting}
+
+Die Portierung ist wörtlich: \texttt{calculateSignatures} berechnet $\sigma_j$ in \texttt{uint64\_t}, \texttt{extractRowComponents} maskiert mit $2^n-1$, \texttt{rotateSequence} rotiert nach rechts, \texttt{computeLCS} ist dieselbe Tabelle wie in Python (bei Unterschied Rücksetzen auf $0$) und \texttt{compareGraphs} dieselbe Entscheidung. Eine Änderung gibt es: C++ liefert zusätzlich \texttt{IDENTICAL}, wenn beide Matrizen gleiche Größe und gleiche Zeilenkomponenten haben; das wird vor den Rotationen geprüft.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}cL{3.6cm}Y@{}}
+		\toprule
+		Code & Name & Bedeutung \\
+		\midrule
+		0 & \texttt{KEEP\_A} & $B\preceq A$: $B$ ist in $A$ enthalten, behalte $A$ \\
+		1 & \texttt{KEEP\_B} & $A\preceq B$: $A$ ist in $B$ enthalten, behalte $B$ \\
+		2 & \texttt{KEEP\_BOTH} & keine Beziehung \\
+		3 & \texttt{IDENTICAL} & identische Matrizen (nur C++) \\
+		4 & \texttt{EQUAL\_KEEP\_A} & wechselseitig enthalten, behalte $A$ (bei Kantengleichstand) \\
+		5 & \texttt{EQUAL\_KEEP\_B} & wechselseitig enthalten, behalte $B$ \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Ergebniswerte von \texttt{compareGraphs} und ihre Codes.}
+	\label{tab:resultcodes}
+\end{table}
+
+\paragraph{Laufzeit und Grenze.} Je Richtung werden höchstens $n_B$ Rotationen mit je einer $O(n_An_B)$-Tabelle geprüft; für gleiche Größen ergibt das $O(n^3)$. Eine Knotengrenze prüft \texttt{SubgraphAlgorithm} \emph{nicht} selbst: Die Zeilenkomponente braucht $n$ Bit, und die Maske $(1\ll n)-1$ ist nur für $n\le 63$ definiert. Die Grenze wird erst in \texttt{MultiOmics::isValidLayerStack} und im Adapter durchgesetzt (Kapitel~\ref{chap:befunde}).
+
+\section{Abweichungen zwischen Python und C++}
+\label{sec:abweichungen}
+
+Ein früherer Differenzialtest verglich beide Fassungen an $20\,000$ Zufallspaaren (Kapitel~\ref{chap:pruefung}): $127$ Abweichungen, \emph{alle} bei zwei identischen $1\times1$-Graphen. Der Quelltext erklärt sie vollständig. Python braucht für \texttt{keep\_*} eine gemeinsame Teilfolge der Länge $\ge2$; bei $n=1$ ist das unmöglich, also \texttt{keep\_both}. C++ prüft vorher die Gleichheit der Zeilenkomponenten und liefert \texttt{IDENTICAL}. Die C++-Antwort ist hier die fachlich richtige; die Referenz ist an dieser Stelle fehlerhaft. Gen-DB übersetzt \texttt{IDENTICAL} deshalb in \texttt{equal\_keep\_A} oder \texttt{equal\_keep\_B} nach Kantenzahl und liefert damit für Graphen mit $n\ge 2$ dasselbe wie die Referenz.
+
+\chapter{Erweiterungen: MultiOmics und ExactSubgraph}
+\label{chap:omics_exact}
+
+\section{Das Modul \texttt{MultiOmics}}
+\label{sec:multiomics}
+
+\texttt{MultiOmics} (\W{2}) verallgemeinert die Relation auf Schichtstapel. Es kennt zwei Modi und zwei Strategien.
+
+\begin{lstlisting}[language=C++, caption={Schnittstelle von \texttt{MultiOmics} (gekürzt)}, label={lst:multiomics_h}]
+class MultiOmics {
+public:
+    using Matrix = std::vector<std::vector<int>>;  using LayerStack = std::vector<Matrix>;
+    static constexpr std::size_t kMaxNodes = 63;
+    enum class Mode     { COHERENT, INDEPENDENT };
+    enum class Strategy { BIGRAM, DYNAMIC };
+    enum class IntegrationOp { UNION, INTERSECTION, CONSENSUS };
+
+    static bool isValidLayerStack(const LayerStack& stack);          // n <= 63, quadratisch, 0/1
+    static Matrix integrateConsensus(const LayerStack&, std::size_t k);  // Union: k=1, Schnitt: k=L
+    static bool contains(const LayerStack& a, const LayerStack& b, Mode, Strategy);
+    static Result compareLayered(const LayerStack& a, const LayerStack& b, Mode, Strategy);
+};
+\end{lstlisting}
+
+Im Modus \texttt{INDEPENDENT} muss jede Schicht für sich die Relation erfüllen; im Modus \texttt{COHERENT} werden die Zeilenkomponenten aller Schichten je Spalte zu einem Tupel zusammengefasst, das injektiv auf eine Zahl abgebildet wird, und die Relation wird auf der Folge dieser Zahlen geprüft. Die Strategie \texttt{DYNAMIC} verwendet die Rotations- und Tabellenfassung von \texttt{SubgraphAlgorithm} (ruft also \texttt{computeLCS} und \texttt{rotateSequence} auf), die Strategie \texttt{BIGRAM} die Paarcharakterisierung (Satz~\ref{satz:paar}): Es genügt, dass ein benachbartes Paar von $a$ als zyklisch benachbartes Paar in $b$ vorkommt. Die Strategien liefern nach Satz~\ref{satz:paar} dieselben Ergebnisse. Bei $L=1$ stimmt \texttt{compareLayered} mit \texttt{compareGraphs} überein, abgesehen von der Gleichheitsprüfung, die dasselbe \texttt{IDENTICAL} liefert.
+
+\section{Das Modul \texttt{ExactSubgraph}}
+\label{sec:exact}
+
+\texttt{ExactSubgraph} (\W{3}) entscheidet $H\sqsubseteq_{\mathrm{mono}}G$ und liefert die Einbettung. Es gehört nicht zum Signaturverfahren: Es wurde für die Wiederverwendung im SAT-Solver ergänzt, weil die Reduktion ein korrektes und vollständiges Orakel braucht (Definition~\ref{def:orakel}). Von \texttt{csubgraph} wird nur die Bibliotheksform wiederverwendet, nicht der Algorithmus.
+
+\begin{lstlisting}[language=C++, caption={Schnittstelle von \texttt{ExactSubgraph} (gekürzt)}, label={lst:exact_h}]
+class BitGraph {                    // ungerichtet, einfach, Schleifen ignoriert
+public:  explicit BitGraph(size_t n = 0);  void addEdge(size_t u, size_t v);
+         bool hasEdge(size_t u, size_t v) const;   // Speicher: n * ceil(n/64) * 8 Byte
+};
+class ExactSubgraph {
+public:
+    class Timeout : public std::runtime_error { /* ... */ };
+    // true, wenn pattern in host enthalten ist; bei Erfolg optional mapping: Knoten von pattern -> Knoten von host
+    static bool contains(const BitGraph& host, const BitGraph& pattern,
+                         std::vector<size_t>* mapping = nullptr, double timeoutSec = 0.0);
+};
+\end{lstlisting}
+
+Ist das Muster vollständig ($|E_H|=k(k-1)/2$), wird eine $k$-Clique gesucht (Klasse \texttt{CliqueSearch}), sonst läuft eine allgemeine Rückverfolgungssuche (\texttt{GeneralSearch}). Für die Reduktion ist nur der erste Fall relevant.
+
+\subsection{Die Cliquensuche}
+
+Die Suche kombiniert einen Gradfilter ($k$-Kern), eine einmalig berechnete gierige Färbung als Schranke und eine Verzweigung auf die kleinste Farbklasse.
+
+\begin{lemma}[$k$-Kern]
+	\label{lem:kkern}
+	Ein Knoten $v$ mit weniger als $k-1$ Nachbarn in der Kandidatenmenge $C$ liegt in keiner $k$-Clique in $C$. Das iterierte Entfernen solcher Knoten verändert die Menge der $k$-Cliquen in $C$ nicht.
+\end{lemma}
+
+\begin{proof}
+	Liegt $v$ in einer $k$-Clique $Q\subseteq C$, sind die $k-1$ übrigen Knoten von $Q$ Nachbarn von $v$ in $C$. Hat $v$ weniger Nachbarn, ist das unmöglich. Da keine $k$-Clique den entfernten Knoten enthält, bleibt jede $k$-Clique erhalten; die Gradbedingung wird für die kleinere Menge erneut geprüft, und die Argumentation wiederholt sich.
+\end{proof}
+
+\begin{lemma}[Färbungsschranke]
+	\label{lem:faerbung}
+	Die gierige Färbung teilt die Knoten in Klassen, die jeweils unabhängige Mengen sind. Eine Clique enthält höchstens einen Knoten je Klasse; eine $r$-Clique in $C$ benötigt daher mindestens $r$ Klassen mit nichtleerem Schnitt mit $C$.
+\end{lemma}
+
+\begin{proof}
+	Der Quelltext fügt $v$ nur in eine Klasse ein, in der $v$ keinen Nachbarn hat; jede Klasse ist also unabhängig. Zwei Knoten einer Clique sind benachbart und liegen deshalb in verschiedenen Klassen.
+\end{proof}
+
+\begin{satz}[Korrektheit und Vollständigkeit der Cliquensuche]
+	\label{satz:cliquensuche}
+	\texttt{CliqueSearch::run} liefert genau dann \texttt{true}, wenn $G$ eine $k$-Clique enthält, und die gelieferte Knotenfolge ist dann eine $k$-Clique.
+\end{satz}
+
+\begin{proof}
+	\emph{Korrektheit.} Die Rekursion \texttt{solve(cand, need)} wählt $v\in\texttt{cand}$ und ruft sich mit $\texttt{cand}\cap N(v)$ und $\texttt{need}-1$ auf. Per Induktion ist jeder Knoten von \texttt{path\_} mit allen früheren benachbart. Bei $\texttt{need}=0$ hat \texttt{path\_} also $k$ paarweise benachbarte Knoten.
+
+	\emph{Vollständigkeit.} Nach Lemma~\ref{lem:kkern} geht durch den Gradfilter keine $k$-Clique verloren. In \texttt{solve} wird die Klasse $c$ mit den wenigsten Kandidaten gewählt. Eine \texttt{need}-Clique in \texttt{cand} enthält nach Lemma~\ref{lem:faerbung} entweder genau einen Knoten aus $c$ oder keinen. Im ersten Fall wird sie beim Probieren der Kandidaten von $c$ gefunden, im zweiten nach dem Entfernen von $c$ in der nächsten Schleifenrunde. Die Abbruchbedingung $\texttt{nonEmpty}<\texttt{need}$ ist nach Lemma~\ref{lem:faerbung} zulässig; bei $\texttt{nonEmpty}=\texttt{need}$ muss jede nichtleere Klasse genau einen Knoten beitragen, insbesondere $c$, und alle Kandidaten von $c$ sind bereits erfolglos probiert. Die Rekursion terminiert, weil \texttt{need} oder die Kandidatenmenge schrumpft.
+\end{proof}
+
+\begin{bemerkung}[Zeitlimit]
+	Die Klasse \texttt{Deadline} prüft die Uhr nur bei jedem 1024.\ Aufruf von \texttt{tick()}, und \texttt{tick()} wird nur in der Suche selbst aufgerufen, nicht im $k$-Kern und nicht in der Färbung. Bei sehr großen Graphen kann die Vorverarbeitung das Limit überschreiten. Überschreitet die Suche es, wirft sie \texttt{ExactSubgraph::Timeout}.
+\end{bemerkung}
+
+\subsection{Die allgemeine Suche}
+
+Für nicht vollständige Muster ordnet \texttt{GeneralSearch} die Musterknoten gierig (zuerst der Knoten mit den meisten bereits geordneten Nachbarn, dann der mit dem höchsten Grad), schneidet beim Fortsetzen die Nachbarschaftsmengen der bereits abgebildeten Nachbarn bitweise und verwirft Kandidaten mit kleinerem Grad als der Musterknoten. Auch sie ist im ungünstigsten Fall exponentiell und wird in den Kopplungen dieser Arbeit nicht gebraucht.
+
+\section{Die mengenbasierte Verallgemeinerung}
+\label{sec:universal}
+
+Die Paarcharakterisierung benutzt nur die Gleichheit von Folgengliedern. Gen-DB nutzt das in \texttt{universal\_core} (\W{10}) aus: Eine \emph{Schicht} ist eine Folge endlicher Mengen $s_j\subset\mathbb{N}$, ein \emph{Stapel} besteht aus $L$ Schichten gleicher Länge, und das Enthaltensein ist
+\[
+M\sqsubseteq_{\mathrm{ind}}M' \iff |M|\le|M'| \wedge \forall \ell:\ P_{\mathrm{lin}}(s^{(\ell)})\cap P_{\mathrm{cyc}}(s'^{(\ell)})\ne\emptyset,
+\]
+bzw.\ im kohärenten Modus mit den Tupelfolgen aller aktiven Schichten. Ein Matrixstapel ist der Spezialfall $s^{(\ell)}_j=\{i : A^{(\ell)}_{ij}=1\}$ in lokalen Koordinaten; weil Mengen keine 64-Bit-Zahlen brauchen, entfällt die Knotengrenze. Die Ergebnisnamen sind die der C++-Bibliothek, sodass beide gegeneinander geprüft werden können.
+
+\chapter{Außenflächen des Kerns}
+\label{chap:aussen}
+
+Der Kern hat vier Außenflächen. Jede ist eine eigene Wiederverwendungsgrenze mit eigenem Vertrag.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{2.6cm}L{3.0cm}YL{3.6cm}@{}}
+		\toprule
+		Fläche & Art & Vertrag & Nutzer \\
+		\midrule
+		C++-API & Bibliotheksaufruf & Klassen, Ausnahmen & Adapter, Wrapper, Tests \\
+		JSON-Programm & stdin/stdout & \texttt{graph\_a}, \texttt{graph\_b} $\to$ \texttt{result}, \texttt{result\_code} & frühe Gen-DB-Läufe \\
+		Datei-Adapter & Dateipaar, Exit-Code & \texttt{G}, \texttt{H} $\to$ \texttt{is\_subgraph}, \texttt{mapping} & Solver \\
+		C-ABI & \texttt{extern "C"} & \texttt{int}-Felder, Fehlerpuffer, Versionsfunktion & Gen-DB per \texttt{ctypes} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die vier Außenflächen von \texttt{csubgraph} und ihre Nutzer.}
+	\label{tab:aussen}
+\end{table}
+
+\section{Das JSON-Programm \texttt{subgraph-cli} (\W{4})}
+
+\begin{lstlisting}[language=JSON, caption={Protokoll von \texttt{subgraph-cli}: Eingabe und Ausgabe}, label={lst:cli_json}]
+{ "graph_a": [[0,1,0],[0,0,1],[0,0,0]], "graph_b": [[0,1],[0,0]] }
+
+{ "result": "KEEP_A", "result_code": 0, "error": null }
+\end{lstlisting}
+
+Das Programm ruft ausschließlich \texttt{SubgraphAlgorithm::compareGraphs} auf. Es war der Aufrufweg der frühen Gen-DB-Läufe und wurde von der Bibliotheksanbindung abgelöst, weil Prozessstart und JSON-Kodierung je Vergleich die Kosten des Rechenkerns überdeckten (Abschnitt~\ref{sec:messungen}).
+
+\section{Der Datei-Adapter \texttt{SolverCli} (\W{5})}
+\label{sec:adapter}
+
+Der Adapter \texttt{subgraph} (\texttt{SolverCli.cpp}) spricht das Dateiprotokoll des SAT-Solvers. Er liest die Eingabe in einem Durchgang ohne DOM-Struktur, weil die Reduktionsgraphen viele Millionen Kanten haben können, wählt das Verfahren über Umgebungsvariablen und schreibt das Ergebnis im vom Solver erwarteten Format.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{4.6cm}Y@{}}
+		\toprule
+		Umgebungsvariable & Wirkung \\
+		\midrule
+		\texttt{SUBGRAPH\_MODE} & \texttt{exact} (Standard): \texttt{ExactSubgraph}, keine Knotengrenze. \texttt{heuristic}: \texttt{compareGraphs}, höchstens $63$ Knoten. \\
+		\texttt{SUBGRAPH\_TIMEOUT\_SEC} & Zeitlimit für den exakten Modus; Standard $60$, $0$ bedeutet kein Limit. \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Konfiguration des Adapters.}
+	\label{tab:adapter_env}
+\end{table}
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}cY@{}}
+		\toprule
+		Exit-Code & Bedeutung \\
+		\midrule
+		0 & Erfolg; die Ausgabedatei enthält \texttt{is\_subgraph} (bei \texttt{true} im exakten Modus auch \texttt{mapping}) \\
+		1 & Fehler: Datei nicht lesbar, JSON ungültig, ungültige Graphen, ungültiger \texttt{SUBGRAPH\_MODE} \\
+		2 & Modus \texttt{heuristic} mit mehr als $63$ Knoten \\
+		3 & Zeitlimit überschritten \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Exit-Codes des Adapters.}
+	\label{tab:adapter_exit}
+\end{table}
+
+Im Signaturmodus wird $A=G$, $B=H$ gesetzt; $H$ in $G$ gilt, wenn das Ergebnis \texttt{KEEP\_A}, \texttt{IDENTICAL}, \texttt{EQUAL\_KEEP\_A} oder \texttt{EQUAL\_KEEP\_B} ist. Die Ausgabe hat die feste Form \texttt{\{"is\_subgraph": true, "mapping": [...]\}} mit einem Leerzeichen nach dem Doppelpunkt; der Solver sucht diese Zeichenfolge wörtlich (Abschnitt~\ref{sec:solver_protokoll}). Das Ausgabeformat ist damit Teil des Vertrags.
+
+\section{Die C-ABI für Gen-DB (\W{7}, \W{8})}
+
+Gen-DB besitzt zwei C-Wrapper (\texttt{csubgraph\_shim.cpp}, \texttt{csubgraph\_omics\_shim.cpp}), die die Bibliothek aufrufen und \texttt{extern "C"} exportieren. Sie gehören zum Repository von Gen-DB, nicht zu \texttt{csubgraph}; der Kern kennt sie nicht. Abschnitt~\ref{sec:gendb_wrapper} beschreibt sie.
+
+\section{Testsuite}
+
+Die Dokumentation von \texttt{csubgraph} nennt $137$ Testfälle in $22$ Gruppen für \texttt{SubgraphAlgorithm} und \texttt{MultiOmics} und sechs Tests für \texttt{ExactSubgraph}, darunter einen Zufallsvergleich mit einer Brute-Force-Suche mit festen Seeds. Die Zahlen sind der Dokumentation entnommen; die Suite selbst wurde hier nicht ausgeführt (kein GoogleTest in der Prüfumgebung). Stattdessen laufen eigene Differenzialtests (Kapitel~\ref{chap:pruefung}).

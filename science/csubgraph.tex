@@ -1,0 +1,434 @@
+\documentclass[a4paper,12pt,twoside]{report}
+% Webadressen (Repository-Verweise) dürfen auch an Bindestrichen umbrochen werden
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{ragged2e}
+\usepackage{rotating}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+ 
+\emergencystretch=4em
+\sloppy
+\geometry{margin=2.5cm}
+
+% ---------- Tabellen: kein Überlauf über den Satzspiegel ----------
+% Spaltentypen: Y = dehnbare Spalte (tabularx), L{w} = Spalte fester Breite;
+% beide linksbündig mit Flattersatz, damit schmale Spalten nicht überlaufen.
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+% Unterstrich in Bezeichnern (\_) erlaubt einen Zeilenumbruch dahinter
+\DeclareRobustCommand{\_}{\textunderscore\allowbreak{}}
+
+ 
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{beispiel}{Beispiel}[chapter]
+\newtheorem{satz}{Satz}[chapter]
+\newtheorem{lemma}{Lemma}[chapter]
+\newtheorem{bemerkung}{Bemerkung}[chapter]
+\newtheorem{korollar}{Korollar}[chapter]
+ 
+\setlist[itemize,1]{label=--}
+ 
+% ---------- Farben ----------
+\definecolor{mainblue}{RGB}{25, 70, 140}
+\definecolor{accentred}{RGB}{180, 50, 30}
+\definecolor{lightgray}{RGB}{245, 245, 248}
+\definecolor{darkgray}{RGB}{60, 60, 70}
+\definecolor{darkgreen}{RGB}{30, 100, 50}
+ 
+\hypersetup{colorlinks=true, linkcolor=mainblue, citecolor=accentred, urlcolor=mainblue}
+ 
+% Verweis auf ein Repository (aktuelles Konto der Quellen: naphez86, siehe Abschnitt "Befunde")
+\newcommand{\repo}[1]{\href{https://github.com/naphez86/#1}{\nolinkurl{github.com/naphez86/#1}}}
+ 
+% Roter Platzhalter für Aussagen, die einen weiteren Messlauf erfordern
+\newcommand{\offen}[1]{\textcolor{accentred}{\textbf{[#1]}}}
+ 
+% Kürzel für die Wiederverwendungen W1 bis W18
+\newcommand{\W}[1]{\textbf{W#1}}
+ 
+% Code-Highlighting
+\lstdefinelanguage{JSON}{
+	morestring=[b]",
+	stringstyle=\color{red},
+	morekeywords={true,false,null}
+}
+ 
+\lstset{
+	basicstyle=\ttfamily\small,
+	keywordstyle=\color{blue},
+	commentstyle=\color{gray},
+	stringstyle=\color{red},
+	numbers=left,
+	numberstyle=\tiny,
+	breaklines=true,
+	breakatwhitespace=false,
+	postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}\space},
+	frame=single,
+	columns=fullflexible,
+	literate=%
+	{Ö}{{\"O}}1 {Ä}{{\"A}}1 {Ü}{{\"U}}1 {ß}{{\ss}}1 {ü}{{\"u}}1 {ä}{{\"a}}1 {ö}{{\"o}}1
+	{Σ}{{$\Sigma$}}1 {→}{{$\rightarrow$}}1 {⊆}{{$\subseteq$}}1 {⊇}{{$\supseteq$}}1
+	{≥}{{$\geq$}}1 {≤}{{$\leq$}}1 {¬}{{$\neg$}}1 {∨}{{$\vee$}}1 {⊑}{{$\sqsubseteq$}}1
+}
+ 
+\title{\textbf{Subgraph Algorithmus\\Wiederverwendung}\\[0.4em]
+	\large Von der Python-Referenz über \texttt{csubgraph} zu Gen-DB, Subgraph-SAT-Solver und Experimenten}
+\author{\textsc{Stephan Epp}\\ {\small \texttt{\textbf{M.Sc.}}}}
+\date{10. Oktober 2026}
+ 
+\begin{document}
+ 
+\pagenumbering{roman}
+\maketitle
+ 
+\begin{abstract}\noindent
+	Der Subgraph Algorithmus wurde ursprünglich in Python implementiert. Seither wurde er auf achtzehn verschiedene Weisen wiederverwendet: als C++-Neuimplementierung, als Verallgemeinerung auf Schichtstapel, als Bibliothek hinter einer C-Schnittstelle, als Kommandozeilenprogramm, als Orakel in einer SAT-Reduktion, als Vorbild für einen Paarindex und als Gegenstand einer Experimentierkette. Diese Arbeit führt alle Wiederverwendungen in einem Katalog (\W{1} bis \W{18}) auf, ordnet sie nach der Art der Wiederverwendung, zeigt, welche Teile des Algorithmus jeweils tatsächlich wiederverwendet werden, und belegt die Kernaussagen durch Beweise, ein durchgerechnetes Beispiel und eigene Prüfläufe. Ein zentrales Ergebnis ist die \emph{Paarcharakterisierung} (Satz~\ref{satz:paar}): Sie erklärt, warum fünf scheinbar verschiedene Wiederverwendungen im Kern dieselbe Relation berechnen. Ein UML-Sequenzdiagramm zeigt am Use Case einer Suche in Gen-DB, wie Browser, Webserver, Prozess-Pool, Python- und C++-Code zusammenspielen. Die Arbeit vergleicht, wie Gen-DB und \texttt{subgraph-sat-solver-econ} ihre C/C++-Bibliothek laden, und entwickelt daraus ausführlich das Konzept einer einheitlichen, betriebssystemunabhängigen gemeinsamen Bibliothek (\texttt{.sl}) mit standardisiertem Ladeverfahren. Sie wertet außerdem die Experimente zum Subgraph-SAT-Solver aus: Eine erste Messreihe mit $288$ Läufen erweist sich als vom Prozessstart und von der Zeitauflösung bestimmt; eine neue Version mit korrigierter Kodierung, Basislinie, unerfüllbaren Instanzen und Referenzsolver zeigt für die gelösten ISCAS'85-Circuits ein etwa quadratisches Wachstum in der Literalzahl (Exponent $2{,}08\pm0{,}07$) und einen Ausfall ab $10\,487$ Literalen. Vierzehn Befunde mit Verbesserungsvorschlägen und ein umfangreicher Ausblick schließen die Arbeit ab.
+\end{abstract}
+ 
+% Drei Gliederungsebenen im Inhaltsverzeichnis
+\setcounter{tocdepth}{2}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+ 
+% =====================================================================
+\part{Ausgangslage}
+% =====================================================================
+ 
+\chapter{Einführung}
+\label{chap:einleitung}
+ 
+Ein Algorithmus, der an mehreren Stellen gebraucht wird, kann auf zwei Arten in Software verankert werden: Jedes Projekt bringt seine eigene Implementierung mit, oder es gibt eine einzige Implementierung, die alle anderen Projekte über eine schmale Schnittstelle benutzen. Die erste Variante ist zunächst einfacher, führt aber dazu, dass Korrekturen, Erweiterungen und Messergebnisse an jeder Stelle einzeln nachgezogen werden müssen. Die zweite Variante verlangt Disziplin bei der Schnittstelle, hat aber den Vorteil, dass jedes Projekt genau das ist, was sein Name sagt: ein Projekt über seine eigene Aufgabe.
+ 
+Der \emph{Subgraph Algorithmus} \cite{epp2026subgraph} ist ein Beispiel für beides. Er wurde in Python implementiert (Repository \repo{subgraph}). Die C++-Bibliothek \repo{csubgraph} ist bereits die erste Wiederverwendung: eine effizientere Neuimplementierung, die dann selbst wieder zum gemeinsamen Kern wurde. Auf ihr bauen die Biologie-Datenbank \repo{gen-db}, der \repo{subgraph-sat-solver} und das Experimente-Framework auf. Hinzu kommen Wiederverwendungen \emph{innerhalb} dieser Projekte, etwa die Python-Neuimplementierung der Mehrschicht-Relation in Gen-DB als Fallback und der invertierte Paarindex, der Vergleiche ganz vermeidet.
+ 
+\section{Fragestellung}
+ 
+Die Arbeit beantwortet acht Fragen.
+ 
+\begin{enumerate}
+	\item Welche Wiederverwendungen des Subgraph Algorithmus gibt es in den vier hochgeladenen Projekten (\texttt{subgraph}, \texttt{csubgraph}, \texttt{gen-db}, \texttt{subgraph-sat-solver}) und im Experimente-Framework, dessen Quelltext nicht geprüft wurde, dessen eigene wissenschaftliche Arbeit aber ausgewertet ist? (Katalog in Kapitel~\ref{chap:katalog})
+	\item Von welcher \emph{Art} ist jede Wiederverwendung, und was genau wird wiederverwendet: der Algorithmus, seine Relation, nur die Bibliothek oder nur die Infrastruktur? (Kapitel~\ref{chap:landschaft} und~\ref{chap:katalog})
+	\item Welche formalen Aussagen tragen die Wiederverwendungen? Insbesondere: Warum berechnen die Mehrschicht-Relation, ihre Python-Neuimplementierung, die mengenbasierte Verallgemeinerung und der Paarindex dasselbe? (Kapitel~\ref{chap:grundlagen} und~\ref{chap:gendb})
+	\item Welche Kopplungsart passt zu welcher Anwendung? (Kapitel~\ref{chap:vergleich})
+	\item Wie laden die Projekte ihre C/C++-Bibliothek, worin unterscheiden sich die Verfahren von Gen-DB und \texttt{subgraph-sat-solver-econ}, und wie ließe sich das Ladeverhalten betriebssystemunabhängig vereinheitlichen? (Kapitel~\ref{chap:laden})
+	\item Wie spielen Browser, Webserver, Prozess-Pool sowie Python- und C++-Code bei einer Suche in Gen-DB zusammen? (Sequenzdiagramm in Abschnitt~\ref{sec:sequenz})
+	\item Was zeigen die Experimente zum Subgraph-SAT-Solver, und was zeigen sie nicht? (Kapitel~\ref{chap:experimente})
+	\item Verträgt sich die Kette noch, wenn der Kern wächst, und welche Schwachstellen hat sie? (Kapitel~\ref{chap:pruefung} und~\ref{chap:befunde})
+\end{enumerate}
+ 
+\section{Arten von Aussagen in dieser Arbeit}
+\label{sec:einleitung_aussagen}
+ 
+Die Arbeit unterscheidet vier Arten von Aussagen und kennzeichnet sie im Text.
+ 
+\begin{itemize}
+	\item \emph{Bewiesen:} Sätze und Lemmata mit Beweis, etwa die Korrektheit der Reduktion, die Paarcharakterisierung oder die Korrektheit der Belegungsextraktion.
+	\item \emph{Aus dem Quelltext gelesen:} Eigenschaften, die sich aus den hochgeladenen Quellen ergeben, etwa Funktionssignaturen, Rückgabecodes oder Standardwerte. Sie gelten für den untersuchten Stand der Repositories.
+	\item \emph{Geprüft:} Ergebnisse eigener Läufe unter Linux (GCC~13), mit aus den Quellen neu gebauten Programmen (Kapitel~\ref{chap:pruefung}). Sie belegen Verträglichkeit und Korrektheit der geprüften Instanzen, keine allgemeinen Laufzeitaussagen.
+	\item \emph{Offen:} Aussagen, die einen weiteren Lauf, einen nicht vorliegenden Quelltext oder eine Entscheidung erfordern. Sie sind im Text rot gekennzeichnet, etwa \offen{offen}.
+\end{itemize}
+ 
+Die Trennung ist wichtig, weil der Gegenstand zwei leicht zu verwechselnde Dinge verbindet: den Signaturalgorithmus mit Laufzeit $O(n^3)$ und einen exakten Cliquen- und Teilgraphtest, dessen Laufzeit im ungünstigsten Fall exponentiell ist (Kapitel~\ref{chap:cpp_portierung} und~\ref{chap:omics_exact}).
+ 
+\section{Aufbau der Arbeit}
+ 
+Die Arbeit hat fünf Teile (Abbildung~\ref{abb:gliederung}).
+ 
+\begin{figure}[!ht]
+    \centering
+    \resizebox{0.97\textwidth}{!}{%
+        \begin{tikzpicture}[font=\small, >={Stealth[length=2mm]},
+            t/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=3.0cm, minimum height=1.5cm, inner sep=3pt}]
+            \node[t] (a) at (0,0) {\textbf{I Ausgangslage}\\1 Einführung\\2 Grundlagen\\3 Landschaft};
+            \node[t] (b) at (3.6,0) {\textbf{II Der Kern}\\4 Python\\5 C++\\6 MultiOmics, Exact\\7 Außenflächen};
+            \node[t] (c) at (7.2,0) {\textbf{III Wieder-verwendungen}\\8 Katalog\\9 Gen-DB\\10 Solver\\11 Experimente\\12 Vergleich\\13 Laden};
+            \node[t] (d) at (10.8,0) {\textbf{IV Prüfung}\\14 Kompatibilität\\15 Befunde\\16 Anleitung};
+            \node[t] (e) at (14.4,0) {\textbf{V Schluss}\\17 Zusammenfassung\\18 Ausblick};
+            \draw[->] (a)--(b); \draw[->] (b)--(c); \draw[->] (c)--(d); \draw[->] (d)--(e);
+        \end{tikzpicture}%
+    }
+    \caption{Gliederung der Arbeit. Teil~II beschreibt, was wiederverwendet wird, Teil~III, \emph{wie} und \emph{wo}, Teil~IV, ob es hält, Teil~V, was daraus folgt.}
+    \label{abb:gliederung}
+\end{figure}
+ 
+Teil~I legt Begriffe, Projektlandschaft und eine Systematik der Wiederverwendungsformen fest. Teil~II beschreibt den Kern in seinen drei Entwicklungsstufen (Python-Referenz, C++-Portierung, Erweiterungen) und seine Außenflächen. Teil~III ist der eigentliche Gegenstand. Er beginnt mit dem Katalog aller Wiederverwendungen. Es folgt das Kapitel zu Gen-DB mit dem Paarindex, den Messungen und dem UML-Sequenzdiagramm einer Suche, das das Zusammenspiel von Python und C++ zeigt (Abschnitt~\ref{sec:sequenz}). Das Kapitel zum Subgraph-SAT-Solver behandelt Reduktionskette, Protokoll und Belegungsextraktion. Das Kapitel zu den Experimenten beschreibt Instanzen, Kodierung, Messmethodik und die Ergebnisse beider Messreihen und ordnet sie ein (Kapitel~\ref{chap:experimente}). Danach kommt der Vergleich der Kopplungsarten. Den Abschluss des Teils bildet das Laden der C/C++-Bibliothek: die zwei Verfahren von Gen-DB und \texttt{subgraph-sat-solver-econ} und das ausführlich beschriebene Konzept eines einheitlichen, betriebssystemunabhängigen Ladeverhaltens (Kapitel~\ref{chap:laden}). Teil~IV prüft die Kette, berichtet vierzehn Befunde mit Verbesserungen und gibt Bau- und Aufrufanweisungen. Teil~V fasst die Ergebnisse zusammen (Kapitel~\ref{chap:zusammenfassung}) und gibt einen ausführlichen Ausblick auf Befunde, Algorithmus, Gen-DB, Solver, Experimente und das einheitliche Laden (Kapitel~\ref{chap:ausblick}).
+
+\chapter{Grundlagen}
+\label{chap:grundlagen}
+ 
+\section{Graphen, Adjazenzmatrizen und Schichtstapel}
+ 
+\begin{definition}[Graph und Adjazenzmatrix]
+	Ein \emph{ungerichteter einfacher Graph} ist ein Paar $G=(V,E)$ mit endlicher Knotenmenge $V=\{v_0,\ldots,v_{n-1}\}$ und einer Kantenmenge $E$ aus zweielementigen Teilmengen von $V$. Seine Adjazenzmatrix $A\in\{0,1\}^{n\times n}$ hat $A_{ij}=A_{ji}=1$ genau dann, wenn $\{v_i,v_j\}\in E$, und $A_{ii}=0$. Ein \emph{gerichteter} Graph hat dagegen $E\subseteq V\times V$ und eine im Allgemeinen nicht symmetrische Matrix.
+\end{definition}
+ 
+Der Algorithmus und \texttt{csubgraph} arbeiten auf Adjazenzmatrizen (Python: \texttt{numpy}-Arrays, C++: \texttt{std::vector<std::vector<int>>}). Gen-DB speichert biologische Netzwerke als gerichtete Graphen; der SAT-Solver erzeugt ungerichtete Graphen und der Adapter trägt Kanten symmetrisch ein (Abschnitt~\ref{sec:adapter}).
+ 
+\begin{definition}[Schichtstapel]
+	Ein \emph{Schichtstapel} mit $L\ge 1$ Schichten über derselben geordneten Knotenmenge der Größe $n$ ist ein Tupel $\mathbf{A}=(A^{(1)},\ldots,A^{(L)})$ von Adjazenzmatrizen $A^{(\ell)}\in\{0,1\}^{n\times n}$. Für $L=1$ ist ein Schichtstapel eine gewöhnliche Adjazenzmatrix.
+\end{definition}
+ 
+\section{Teilgraphen, Cliquen und Erfüllbarkeit}
+ 
+\begin{definition}[Teilgraph-Monomorphismus]
+	Seien $H=(V_H,E_H)$ und $G=(V_G,E_G)$ Graphen. $H$ ist \emph{in $G$ enthalten} (als nicht notwendig induzierter Teilgraph), geschrieben $H\sqsubseteq_{\mathrm{mono}}G$, wenn es eine injektive Abbildung $\varphi:V_H\to V_G$ gibt mit $\{u,v\}\in E_H \Rightarrow \{\varphi(u),\varphi(v)\}\in E_G$. Die Abbildung $\varphi$ heißt \emph{Einbettung}.
+\end{definition}
+ 
+Das ist der Begriff, den das Modul \texttt{ExactSubgraph} entscheidet. Er ist vom Begriff des \emph{induzierten} Teilgraphen zu unterscheiden; für vollständige Muster fallen beide zusammen, weil jede Einbettung eines vollständigen Graphen automatisch induziert ist.
+ 
+\begin{definition}[Clique]
+	Eine \emph{$k$-Clique} in $G$ ist eine Knotenmenge $C\subseteq V_G$ mit $|C|=k$, in der je zwei verschiedene Knoten benachbart sind. $K_k$ bezeichnet den vollständigen Graphen auf $k$ Knoten.
+\end{definition}
+ 
+\begin{lemma}[Clique als Teilgraph]
+	\label{lem:clique_teilgraph}
+	$G$ enthält genau dann eine $k$-Clique, wenn $K_k\sqsubseteq_{\mathrm{mono}}G$.
+\end{lemma}
+ 
+\begin{proof}
+	Ist $C$ eine $k$-Clique, so ist jede Bijektion von $V(K_k)$ auf $C$ eine Einbettung. Ist umgekehrt $\varphi$ eine Einbettung von $K_k$, so sind die $k$ Bildknoten wegen der Injektivität verschieden, und je zwei von ihnen sind benachbart, weil in $K_k$ je zwei Knoten benachbart sind. Das Bild ist also eine $k$-Clique.
+\end{proof}
+ 
+\begin{definition}[CNF, 3-SAT]
+	Eine Formel in konjunktiver Normalform über den Variablen $x_1,\ldots,x_N$ ist eine Konjunktion $\varphi=C_1\wedge\cdots\wedge C_m$ von \emph{Klauseln}, von denen jede eine Disjunktion von \emph{Literalen} $x_i$ oder $\neg x_i$ ist. Eine \emph{Belegung} $\alpha:\{x_1,\ldots,x_N\}\to\{\mathrm{wahr},\mathrm{falsch}\}$ \emph{erfüllt} $\varphi$, wenn jede Klausel mindestens ein unter $\alpha$ wahres Literal enthält. Bei \emph{3-SAT} hat jede Klausel höchstens drei Literale.
+\end{definition}
+ 
+Die Eingabe des Solvers ist das DIMACS-Format: eine Kopfzeile \texttt{p cnf N m} und je Klausel eine Zeile ganzer Zahlen, mit \texttt{0} abgeschlossen; ein negatives Vorzeichen bedeutet Negation.
+ 
+\begin{satz}[3-SAT auf Clique]
+	\label{satz:sat_clique}
+	Sei $\varphi=C_1\wedge\cdots\wedge C_m$ eine 3-SAT-Formel mit $m\ge 1$. Der Graph $G_\varphi$ habe als Knoten die Paare $(i,p)$ mit $i\in\{1,\ldots,m\}$ und $p$ einer Position in $C_i$; $\lambda(i,p)$ sei das Literal dort. Zwei Knoten $(i,p)$, $(j,q)$ seien genau dann benachbart, wenn $i\neq j$ und $\lambda(i,p)\neq\neg\lambda(j,q)$. Dann ist $\varphi$ genau dann erfüllbar, wenn $G_\varphi$ eine $m$-Clique enthält.
+\end{satz}
+ 
+\begin{proof}
+	($\Rightarrow$) Sei $\alpha$ eine erfüllende Belegung. Wähle je Klausel $C_i$ eine Position $p_i$, deren Literal unter $\alpha$ wahr ist. Die Knoten $(i,p_i)$ liegen in verschiedenen Klauseln. Zwei von ihnen können keine komplementären Literale tragen, denn dann wäre eines unter $\alpha$ falsch. Also sind je zwei der $m$ Knoten benachbart.
+ 
+	($\Leftarrow$) Sei $Q$ eine $m$-Clique. Je zwei Knoten von $Q$ liegen in verschiedenen Klauseln; bei $m$ Knoten und $m$ Klauseln enthält $Q$ also aus jeder Klausel genau einen Knoten $(i,p_i)$. Die Literale $\lambda(i,p_i)$ enthalten kein komplementäres Paar. Setze jedes auf wahr (das ist konsistent) und die übrigen Variablen beliebig. Dann ist jede Klausel erfüllt.
+\end{proof}
+ 
+\begin{korollar}[Kette bis zum Subgraph-Problem]
+	\label{kor:kette}
+	$\varphi$ ist genau dann erfüllbar, wenn $K_m\sqsubseteq_{\mathrm{mono}}G_\varphi$.
+\end{korollar}
+ 
+\begin{proof}
+	Satz~\ref{satz:sat_clique} und Lemma~\ref{lem:clique_teilgraph}.
+\end{proof}
+ 
+Das Korollar sagt nichts über die \emph{Laufzeit} des Teilgraphtests. Das Clique-Problem ist NP-vollständig \cite{karp1972,garey1979}; ein Verfahren, das den Test für alle Eingaben in polynomieller Zeit entscheidet, würde $\mathrm{P}=\mathrm{NP}$ bedeuten. Ein solches Verfahren enthält keines der Projekte (Abschnitt~\ref{sec:solver_grenzen}).
+ 
+\section{Signaturen und die Relation des Algorithmus}
+\label{sec:signaturen}
+ 
+Der Subgraph Algorithmus \cite{epp2026subgraph} vergleicht Adjazenzmatrizen nicht über Einbettungen, sondern über Signaturen.
+ 
+\begin{definition}[Spaltensignatur, Zeilenkomponente]
+	Für $A\in\{0,1\}^{n\times n}$ ist die Signatur der Spalte $j$
+	\[
+	\sigma_j(A)=\sum_{i=0}^{n-1}A_{ij}\,2^{i}+j\,2^{n}.
+	\]
+	Die \emph{Zeilenkomponente} ist $\rho_j(A)=\sigma_j(A)\bmod 2^{n}=\sum_{i=0}^{n-1}A_{ij}2^i$, also die binär kodierte Spalte ohne Positionsanteil. Wir schreiben $\rho(A)=(\rho_0(A),\ldots,\rho_{n-1}(A))$.
+\end{definition}
+ 
+Die Zeilenkomponente $\rho_j(A)$ kodiert bijektiv die Menge $\{i : A_{ij}=1\}$, die In-Nachbarschaft des Knotens $j$. Das ist die Brücke zur mengenbasierten Verallgemeinerung in Abschnitt~\ref{sec:universal}.
+ 
+\begin{definition}[Rotation, Teilfolgen-Test]
+	Für eine Folge $b=(b_0,\ldots,b_{q-1})$ ist die Rotation um $r$ nach rechts $\mathrm{rot}_r(b)_i=b_{(i-r)\bmod q}$. Für zwei Folgen $a$ (Länge $p$) und $b$ (Länge $q\ge p$) gilt $a\preceq b$, wenn es eine Rotation $r\in\{0,\ldots,q-1\}$ gibt, für die $a$ und $\mathrm{rot}_r(b)$ eine gemeinsame \emph{zusammenhängende} Teilfolge der Länge mindestens $2$ haben. Für Matrizen $A,B$ mit $n_A\le n_B$ gilt $A\preceq B$, wenn $\rho(A)\preceq\rho(B)$.
+\end{definition}
+ 
+Der Name des Hilfsverfahrens \texttt{computeLCS} ist irreführend: Der Code berechnet den längsten gemeinsamen \emph{Teilstring} (zusammenhängend), nicht die längste gemeinsame Teilfolge; bei einem Unterschied wird der Tabellenwert auf $0$ zurückgesetzt (Abschnitt~\ref{sec:cpp_algorithmus}). Die Relation $\preceq$ ist \emph{nicht} die klassische Teilgraph-Relation; ein Beispiel zeigt den Unterschied.
+ 
+\begin{beispiel}[$K_2\sqsubseteq_{\mathrm{mono}}K_3$, aber $K_2\not\preceq K_3$]
+	\label{bsp:k3k2}
+	Seien $A$ und $B$ die Adjazenzmatrizen von $K_3$ und $K_2$:
+	\[
+	A=\begin{pmatrix}0&1&1\\1&0&1\\1&1&0\end{pmatrix},\qquad
+	B=\begin{pmatrix}0&1\\1&0\end{pmatrix}.
+	\]
+	Klassisch gilt $K_2\sqsubseteq_{\mathrm{mono}}K_3$. Die Zeilenkomponenten sind $\rho(A)=(6,5,3)$ und $\rho(B)=(2,1)$. Die Folgen haben kein gemeinsames Element, die gemeinsame zusammenhängende Teilfolge hat Länge $0<2$. Der Algorithmus meldet daher keine Enthaltensein-Beziehung (\texttt{KEEP\_BOTH}).
+\end{beispiel}
+ 
+Das Beispiel ist keine Kritik am Algorithmus, sondern eine Warnung vor einer Verwechslung: Der Algorithmus beantwortet die in \cite{epp2026subgraph} definierte Frage, nicht das klassische Teilgraphproblem. Kapitel~\ref{chap:solver} zeigt die praktische Folge.
+ 
+\section{Die Paarcharakterisierung}
+\label{sec:paar}
+ 
+Die Relation $\preceq$ lässt sich ohne Rotationen und ohne Tabelle beschreiben. Dieser Satz ist der gemeinsame Nenner mehrerer Wiederverwendungen (\W{2}, \W{9}, \W{10}, \W{11}, Kapitel~\ref{chap:katalog}).
+ 
+\begin{definition}[Paarmengen]
+	Für eine Folge $s=(s_0,\ldots,s_{m-1})$ über einer beliebigen Menge sind
+	\[
+	P_{\mathrm{lin}}(s)=\{(s_j,s_{j+1}) : 0\le j\le m-2\},\qquad
+	P_{\mathrm{cyc}}(s)=\{(s_j,s_{(j+1)\bmod m}) : 0\le j\le m-1\}.
+	\]
+	Für $m\le 1$ sind beide leer.
+\end{definition}
+ 
+\begin{satz}[Paarcharakterisierung]
+	\label{satz:paar}
+	Seien $a$ und $b$ Folgen der Längen $p\le q$. Dann gilt $a\preceq b$ genau dann, wenn $P_{\mathrm{lin}}(a)\cap P_{\mathrm{cyc}}(b)\neq\emptyset$.
+\end{satz}
+ 
+\begin{proof}
+	($\Rightarrow$) Gilt $a\preceq b$, so gibt es $r$ und eine gemeinsame zusammenhängende Teilfolge der Länge $\ge 2$ von $a$ und $\mathrm{rot}_r(b)$. Sie enthält zwei aufeinanderfolgende Einträge: $a_i=\mathrm{rot}_r(b)_j$ und $a_{i+1}=\mathrm{rot}_r(b)_{j+1}$ mit $j+1\le q-1$. Wegen $\mathrm{rot}_r(b)_j=b_{(j-r)\bmod q}$ ist $(a_i,a_{i+1})=(b_k,b_{(k+1)\bmod q})$ mit $k=(j-r)\bmod q$. Das Paar liegt in $P_{\mathrm{lin}}(a)\cap P_{\mathrm{cyc}}(b)$.
+ 
+	($\Leftarrow$) Sei $(a_i,a_{i+1})=(b_k,b_{(k+1)\bmod q})$. Wegen $P_{\mathrm{lin}}(a)\ne\emptyset$ ist $p\ge2$, also $q\ge 2$. Mit $r=(q-k)\bmod q$ steht $b_k$ an Position $0$ und $b_{(k+1)\bmod q}$ an Position $1$ von $\mathrm{rot}_r(b)$. Damit ist $(a_i,a_{i+1})$ eine gemeinsame zusammenhängende Teilfolge der Länge $2$ von $a$ und $\mathrm{rot}_r(b)$.
+\end{proof}
+ 
+Aus dem Satz folgen zwei Dinge. Erstens genügt zur Entscheidung von $\preceq$ ein Mengenschnitt, in erwarteter Zeit $O(p+q)$ statt $O(q\cdot pq)$ durch alle Rotationen mit je einer Tabelle. Zweitens verwendet die Aussage nur die Gleichheit der Folgenglieder, nicht ihre Natur. Sie gilt deshalb ebenso für Folgen von Tupeln (Schichtstapel, Modus \emph{kohärent}) und für Folgen von Mengen (Abschnitt~\ref{sec:universal}) und lässt sich in einen invertierten Index umsetzen (Abschnitt~\ref{sec:index}). Die Aussage wurde zusätzlich an $200\,000$ Zufallspaaren kurzer Folgen gegen die Rotations-und-Tabellen-Fassung geprüft, ohne Abweichung (Kapitel~\ref{chap:pruefung}).
+ 
+\section{Das Subgraph-Orakel als abstrakte Schnittstelle}
+ 
+Die Anwendungen hängen nicht vom Algorithmus ab, sondern von einer Schnittstelle.
+ 
+\begin{definition}[Subgraph-Orakel]
+	\label{def:orakel}
+	Ein \emph{Subgraph-Orakel} ist ein Verfahren $\mathcal{O}$, das für ein Paar ungerichteter Graphen $(G,H)$ entweder \emph{nein} oder \emph{ja} liefert, bei \emph{ja} optional mit einer Einbettung von $H$ in $G$. $\mathcal{O}$ heißt \emph{korrekt}, wenn aus \emph{ja} stets $H\sqsubseteq_{\mathrm{mono}}G$ folgt und eine gelieferte Einbettung tatsächlich eine ist, und \emph{vollständig}, wenn aus $H\sqsubseteq_{\mathrm{mono}}G$ stets \emph{ja} folgt.
+\end{definition}
+ 
+Der SAT-Solver braucht ein korrektes und vollständiges Orakel mit Einbettung, denn nur dann folgt aus Korollar~\ref{kor:kette}, dass \emph{ja} erfüllbar und \emph{nein} unerfüllbar bedeutet. \texttt{ExactSubgraph} erfüllt das, der Signaturmodus nicht (Beispiel~\ref{bsp:k3k2}, Abschnitt~\ref{sec:solver_beispiel}). Gen-DB braucht dagegen kein Orakel, sondern die Relation $\preceq$ selbst und ihre mehrschichtigen Fassungen.
+ 
+\chapter{Projektlandschaft und Wiederverwendungsformen}
+\label{chap:landschaft}
+ 
+\section{Die Repositories}
+ 
+Tabelle~\ref{tab:repos} fasst Aufgabe und Rolle der fünf Projekte zusammen; die letzte Spalte beantwortet, wer den Algorithmus \emph{implementiert} und wer ihn nur benutzt. Der Quelltext des Experimente-Frameworks wurde nicht geprüft; Kapitel~\ref{chap:experimente} beschreibt es nach seiner eigenen wissenschaftlichen Arbeit.
+ 
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{4.2cm}L{2.2cm}YL{3.1cm}@{}}
+		\toprule
+		Repository & Sprache & Aufgabe & Algorithmus enthalten? \\
+		\midrule
+		\repo{subgraph} & Python & Referenzimplementierung, Klasse \texttt{Subgraph} & ja (Signaturen, Rotation) \\[0.4em]
+		\repo{csubgraph} & C++17 & statische Bibliothek mit \texttt{SubgraphAlgorithm}, \texttt{MultiOmics}, \texttt{ExactSubgraph}; Programme \texttt{subgraph-cli} und \texttt{subgraph} & ja (drei Module) \\[0.4em]
+		\repo{gen-db} & Python (FastAPI, PostgreSQL) & Datenbank biologischer Netzwerke mit Subgraph-, Multi-Omics- und universeller Suche & ja, als Neu\-imple\-men\-tie\-rung der Relation (\texttt{multiomics\_python}, \texttt{universal\_core}) \\[0.4em]
+		\repo{subgraph-sat-solver} & C++17 & Reduktionskette CNF $\to$ 3-SAT $\to$ Clique $\to$ Subgraph & nein (ruft externes Programm) \\[0.4em]
+		\repo{subgraph-sat-solver-experiments} & Python & Messframework & nein (startet den Solver) \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Die fünf Projekte. Gegenüber der früheren Fassung dieser Arbeit enthält Gen-DB \emph{doch} eigene Realisierungen der Relation.}
+	\label{tab:repos}
+\end{table}
+ 
+\section{Abhängigkeiten}
+ 
+Abbildung~\ref{abb:abhaengigkeiten} zeigt die Abhängigkeiten. Durchgezogene Pfeile sind Laufzeit- oder Bauabhängigkeiten, gestrichelte Pfeile Rückfallwege oder Geschwisterbeziehungen.
+ 
+\begin{figure}[!ht]
+	\centering
+	\begin{tikzpicture}[
+		font=\small, >={Stealth[length=2.2mm]},
+		box/.style={draw=mainblue, rounded corners=2pt, fill=lightgray, align=center, text width=3.9cm, minimum height=1.0cm, inner sep=3pt},
+		core/.style={draw=accentred, very thick, rounded corners=2pt, fill=white, align=center, text width=9.2cm, minimum height=1.5cm, inner sep=4pt},
+		lab/.style={font=\scriptsize, align=left, text=darkgray}
+	]
+		\node[box] (exp) at (0,8.4) {\textbf{subgraph-sat-solver-}\\\textbf{experiments}\\Python};
+		\node[box] (sat) at (0,5.8) {\textbf{subgraph-sat-solver}\\C++17};
+		\node[box] (adp) at (0,3.2) {\textbf{Adapter} \texttt{subgraph}\\\texttt{SolverCli.cpp}};
+		\node[box] (py)  at (8.4,8.4) {\textbf{subgraph}\\Python (Referenz)};
+		\node[box] (gen) at (8.4,5.8) {\textbf{gen-db}\\Python, FastAPI};
+		\node[box] (shim) at (8.4,3.2) {\textbf{C-Wrapper} (\texttt{ctypes})\\\texttt{csubgraph\_shim.cpp}\\\texttt{csubgraph\_omics\_shim.cpp}};
+		\node[core] (lib) at (4.2,0.4) {\textbf{csubgraph}: \texttt{libsubgraphlib.a}\\[2pt]\texttt{SubgraphAlgorithm} \quad \texttt{MultiOmics} \quad \texttt{ExactSubgraph}};
+ 
+		\draw[->, thick] (exp) -- (sat) node[midway, right, lab] {Prozess, Exit-Code 10/20};
+		\draw[->, thick] (sat) -- (adp) node[midway, right, lab] {Prozess, \texttt{input.json}\\\texttt{output.json}};
+		\draw[->, thick] (adp) -- (adp |- lib.north) node[midway, right, lab] {gelinkt};
+		\draw[->, thick] (gen) -- (shim) node[midway, right, lab] {\texttt{ctypes}};
+		\draw[->, thick] (shim) -- (shim |- lib.north) node[midway, right, lab] {gelinkt beim\\ersten Gebrauch};
+		\draw[->, thick, dashed] (gen) -- (py) node[midway, right, lab] {Fallback};
+		% \draw[->, thick, dashed] (lib.north west) .. controls (2,2.5) and (6.5,7.2) .. (py.south west) node[pos=0.55, left, lab] {Portierung};
+	\end{tikzpicture}
+	\caption{Abhängigkeiten der Projekte. Der gestrichelte Bogen von \texttt{csubgraph} zu \texttt{subgraph} deutet die Portierung an (\W{1}); die Abhängigkeit des Solvers vom Adapter ist eine Prozessgrenze.}
+	\label{abb:abhaengigkeiten}
+\end{figure}
+ 
+\section{Eine Systematik der Wiederverwendung}
+ 
+Die achtzehn Wiederverwendungen unterscheiden sich darin, \emph{was} sie vom Ursprung übernehmen. Die Arbeit verwendet sieben Formen.
+
+Die in Tabelle~\ref{tab:formen} vorgenommene Systematisierung der insgesamt achtzehn Wiederverwendungen bildet das architektonische und methodische Rückgrat dieser Arbeit. Sie verdeutlicht, dass Wiederverwendung im wissenschaftlichen Softwarebau kein monolithischer Block ist, sondern sich auf fundamental unterschiedliche Dimensionen und Abstraktionsebenen stützen kann. Die zugrundeliegende Taxonomie unterscheidet exakt sieben Formen, die jeweils eigene Eigenschaften hinsichtlich Kopplung, Laufzeit, Verifikationsaufwand und Wartbarkeit aufweisen.
+
+\subsection*{Detaillierte Betrachtung der sieben Wiederverwendungsformen}
+
+\begin{itemize}
+    \item \textbf{Portierung (\W{1}):} Bei dieser Form wird ein bestehender Algorithmus in eine andere Programmiersprache übertragen, wobei die Semantik und die mathematischen Ergebnisse exakt gewahrt bleiben. Im Zentrum steht hier die C++-Neuimplementierung des Algorithmus, wodurch zwar die gleiche funktionale Korrektheit wie im Python-Original garantiert wird, sich jedoch drastische Verbesserungen in der Ausführungsgeschwindigkeit und Speichereffizienz ergeben.
+    
+    \item \textbf{Verallgemeinerung (\W{2}, \W{10}):} Hierbei wird die Kernlogik auf einen erweiterten Eingabebereich oder komplexere Datenstrukturen (wie geschichtete Graphen oder abstrakte Mengenfolgen) ausgedehnt. Das wesentliche Kennzeichen ist, dass der ursprüngliche Spezialfall als exakter Unterfall enthalten bleibt und zwingend die identischen Resultate liefert. Dies betrifft unter anderem die MultiOmics-Schichtstapel und die formalen Mengenfolgen.
+    
+    \item \textbf{Neuimplementierung als Fallback (\W{9}):} Tritt der Fall ein, dass fremde Code-Abhängigkeiten in einer bestimmten Umgebung (wie Gen-DB) vermieden werden sollen oder müssen, wird die Relation in der Zielsprache eigenständig neu implementiert. Diese Fassungen besitzen keinen gemeinsamen Quelltext mit dem Original, weshalb ihre Korrektheit nicht strukturell garantiert ist, sondern permanent durch automatisierte Tests gegen das Original abgesichert werden muss.
+    
+    \item \textbf{Bibliotheksnutzung (\W{6}, \W{7}, \W{8}):} Diese Form beschreibt die klassische Einbindung von Programmbibliotheken im selben Ausführungsprozess. Durch direkte API-Aufrufe, C-Wrapper oder Mechanismen wie \texttt{ctypes} wird eine hohe Ausführungsgeschwindigkeit bei gleichzeitiger Bindung an eine bestimmte Application Binary Interface (ABI) erreicht. Die Python-Paketabhängigkeit von Gen-DB fällt ebenso hierunter wie die performanten C-Schnittstellen.
+    
+    \item \textbf{Prozessnutzung (\W{4}, \W{5}, \W{14}, \W{15}, \W{17}):} Wenn Komponenten als eigenständige Dienste oder CLI-Anwendungen gekapselt werden, erfolgt die Interaktion über standardisierte Protokolle (Dateisystem, JSON über Standard-Ein-/Ausgabe). Dies erzeugt eine saubere architektonische Systemgrenze, zieht jedoch systembedingt höhere Aufrufkosten (Inter-Process Communication, Serialization) nach sich. Beispiele reichen von den Subgraph-CLIs über Solver-Adapter bis hin zur Experimente-Infrastruktur.
+    
+    \item \textbf{Infrastruktur (\W{3}, \W{12}, \W{13}):} In dieser Kategorie wird nicht der eigentliche mathematische Algorithmus wiederverwendet, sondern die begleitende Umgebung wie Build-Systeme, parallele Prozess-Pools (\texttt{compare\_many}) oder Test-Frameworks für Differenzialtests. Diese Elemente stützen den Entwicklungsprozess und die Qualitätssicherung, ohne direkt in die Evaluation der Relation einzufließen.
+    
+    \item \textbf{Begriffliche Wiederverwendung (\W{11}, \W{16}, \W{18}):} Die schwächste, aber konzeptionell oft wirkungsvollste Form basiert auf dem Transfer reiner Ideen und theoretischer Konzepte—wie etwa der Paarcharakterisierung oder der Extraktion von Einbettungen. Hier existiert kein gemeinsamer Quelltext; stattdessen dient das zugrundeliegende Theorem als Blaupause für eigenständige Implementierungen in anderen Domänen.
+\end{itemize}
+
+\subsection*{Praktische Konsequenzen für Wartung und Evolution}
+
+Die Differenzierung nach diesen sieben Formen ist keineswegs nur akademischer Natur, sondern hat unmittelbare und weitreichende Auswirkungen auf die Wartbarkeit, Robustheit und Zukunftssicherheit des Gesamtsystems. Wenn sich im Zuge der Weiterentwicklung Änderungen an der Kernlogik ergeben—beispielsweise eine Modifikation des Schwellenwerts ($\ge 2$) im Vergleichsalgorithmus oder eine Anpassung der Rotationsrichtung--, schlagen sich diese Änderungen je nach Verwendungsform völlig unterschiedlich nieder:
+
+\begin{enumerate}
+    \item \textbf{Manuelle Nachpflege und Validierung:} Komponenten der Formen \textit{Portierung}, \textit{Verallgemeinerung} und \textit{Neuimplementierung} besitzen eine direkte algorithmische Abhängigkeit. Jede Änderung am Original erfordert hier ein manuelles Nachziehen des Quelltextes und eine erneute, strenge Verifikation (z. B. durch Differenzialtests), um Regressionen auszuschließen.
+    \item \textbf{Automatische Vererbung:} Module, die auf \textit{Bibliotheks-} oder \textit{Prozessnutzung} basieren, entkoppeln die Ausführung physisch oder prozessual. Wird die zugrundeliegende Bibliothek aktualisiert oder neu kompiliert, erben diese Module die algorithmischen Anpassungen vollkommen automatisch, ohne dass Anpassungen an ihrer eigenen Schnittstelle nötig sind.
+    \item \textbf{Vollständige Unabhängigkeit:} Schließlich bleiben Anteile der Kategorien \textit{Infrastruktur} und \textit{Begriffliche} von rein algorithmischen Änderungen inhaltlich gänzlich unberührt, da sie auf abstrakteren Ebenen operieren oder lediglich organisatorische Funktionen erfüllen.
+\end{enumerate}
+
+Durch dieses Zusammenspiel erlaubt es der Katalog, die evolutionären Kosten von Softwareänderungen präzise abzuschätzen und gezielt dort Test- und Prüfkapazitäten zu konzentrieren, wo manuelle Nachbesserungen zwingend erforderlich sind.
+
+\begin{table}[!ht]
+	\centering
+	\small
+	\begin{tabularx}{\textwidth}{@{}L{3.8cm}Y L{3.1cm}L{2.6cm}@{}}
+		\toprule
+		Form & Was wird übernommen? & Kennzeichen & Beispiele \\
+		\midrule
+		\emph{Portierung} & Algorithmus und Ergebnisse, neue Sprache & gleiche Funktion, andere Laufzeit & \W{1} \\[0.3em]
+		\emph{Verallgemeinerung} & Algorithmus, auf größeren Eingabebereich & Spezialfall liefert das alte Ergebnis & \W{2}, \W{10} \\[0.3em]
+		\emph{Neuimplementierung als Fallback} & Relation in Sprache der Anwendung & muss gegen Original geprüft werden & \W{9} \\[0.3em]
+		\emph{Bibliotheksnutzung} & Code der Bibliothek, im selben Prozess & schnell, ABI-gebunden & \W{6}, \W{7}, \W{8} \\[0.3em]
+		\emph{Prozessnutzung} & Programm als Dienst & klare Grenze, hohe Aufrufkosten & \W{4}, \W{5}, \W{14}, \W{15}, \W{17} \\[0.3em]
+		\emph{Infrastruktur} & Bau, Adapter, Bibliotheksform, aber nicht der Algorithmus & Teil des Pakets, nicht der Relation & \W{3}, \W{12}, \W{13} \\[0.3em]
+		\emph{Begriffliche} & Idee (Paarcharakterisierung) statt Code & kein gemeinsamer Quelltext & \W{11}, \W{16}, \W{18} \\
+		\bottomrule
+	\end{tabularx}
+	\caption{Sieben Formen der Wiederverwendung. Kapitel~\ref{chap:katalog} ordnet jede der achtzehn Wiederverwendungen genau einer Form zu.}
+	\label{tab:formen}
+\end{table}
+ 
+Die Unterscheidung hat eine praktische Folge: Wer den Algorithmus ändert (etwa seine Schwelle $\ge 2$ oder die Rotationsrichtung), muss alle Wiederverwendungen der Formen Portierung, Verallgemeinerung und Neuimplementierung nachziehen und gegen das Original prüfen. Bibliotheks- und Prozessnutzung erben die Änderung dagegen automatisch, Infrastruktur und Begriffliche gar nicht.
+
+\include{p1}
+
+\include{p2}
+
+\include{p3}
+
+\end{document}
