@@ -690,7 +690,7 @@ pdflatex csubgraph.tex
 
 ## Erwerb
 
-Der Preis für diese Software beträgt 3.145.000,00 EUR.
+Der Preis für diese Software beträgt 11.145.000,00 EUR.
 
 ### Zahlungsinformationen
 
